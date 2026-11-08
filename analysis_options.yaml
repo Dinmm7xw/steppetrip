@@ -1,0 +1,16 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    - build/**
+    - android/**
+    - web/**
+    - windows/**
+  errors:
+    deprecated_member_use: ignore
+    avoid_print: ignore
+    use_super_parameters: ignore
+
+linter:
+  rules:
+    avoid_print: false
