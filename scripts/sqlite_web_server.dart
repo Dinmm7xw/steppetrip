@@ -1,4 +1,5 @@
 // ignore_for_file: avoid_print
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:path/path.dart' as p;
@@ -8,171 +9,163 @@ import 'package:steppetrip/models/review_model.dart';
 import 'package:steppetrip/services/mock_data_service.dart';
 
 late final String dbPath;
+late final String jsonMirrorPath;
 late final String webBuildDir;
 
-Future<Database> openSteppeDb() async {
-  final db = await databaseFactoryFfi.openDatabase(
-    dbPath,
-    options: OpenDatabaseOptions(
-      version: 2,
-      onOpen: (db) async {
-        await db.execute('''
-          CREATE TABLE IF NOT EXISTS tours (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            region TEXT NOT NULL,
-            category TEXT NOT NULL,
-            rating REAL NOT NULL,
-            reviewsCount INTEGER NOT NULL,
-            pricePerPerson INTEGER NOT NULL,
-            description TEXT NOT NULL,
-            imageUrl TEXT NOT NULL,
-            highlights TEXT NOT NULL,
-            bestSeason TEXT NOT NULL,
-            isFavorite INTEGER NOT NULL DEFAULT 0
-          )
-        ''');
-        await db.execute('''
-          CREATE TABLE IF NOT EXISTS bookings (
-            id TEXT PRIMARY KEY,
-            tourId TEXT NOT NULL,
-            tourName TEXT NOT NULL,
-            date TEXT NOT NULL,
-            peopleCount INTEGER NOT NULL,
-            totalPrice INTEGER NOT NULL,
-            status TEXT NOT NULL,
-            clientName TEXT NOT NULL,
-            clientPhone TEXT NOT NULL,
-            notes TEXT
-          )
-        ''');
-        await db.execute('''
-          CREATE TABLE IF NOT EXISTS reviews (
-            id TEXT PRIMARY KEY,
-            tourId TEXT NOT NULL,
-            userName TEXT NOT NULL,
-            rating INTEGER NOT NULL,
-            comment TEXT NOT NULL,
-            date TEXT NOT NULL,
-            tags TEXT NOT NULL,
-            userAvatar TEXT
-          )
-        ''');
-        await db.execute('''
-          CREATE TABLE IF NOT EXISTS categories (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL UNIQUE,
-            iconName TEXT NOT NULL,
-            placesCount INTEGER NOT NULL DEFAULT 0
-          )
-        ''');
-        await db.execute('''
-          CREATE TABLE IF NOT EXISTS users (
-            id TEXT PRIMARY KEY,
-            fullName TEXT NOT NULL,
-            email TEXT NOT NULL,
-            phone TEXT NOT NULL,
-            avatarUrl TEXT NOT NULL,
-            preferredLanguage TEXT NOT NULL,
-            completedTours INTEGER NOT NULL DEFAULT 0,
-            role TEXT NOT NULL DEFAULT 'tourist',
-            isApproved INTEGER NOT NULL DEFAULT 1
-          )
-        ''');
-        await db.execute('''
-          CREATE TABLE IF NOT EXISTS user_passwords (
-            email TEXT PRIMARY KEY,
-            password TEXT NOT NULL
-          )
-        ''');
-        await db.execute('''
-          CREATE TABLE IF NOT EXISTS favorites (
-            id TEXT PRIMARY KEY,
-            userId TEXT NOT NULL,
-            tourId TEXT NOT NULL,
-            addedAt TEXT NOT NULL
-          )
-        ''');
-        try {
-          await db.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'tourist'");
-        } catch (_) {}
-        try {
-          await db.execute("ALTER TABLE users ADD COLUMN isApproved INTEGER NOT NULL DEFAULT 1");
-        } catch (_) {}
-      },
-    ),
-  );
-  return db;
+// Live in-memory + JSON + SQLite synchronized state
+final Map<String, Map<String, dynamic>> liveUsers = {};
+final Map<String, String> livePasswords = {
+  'dinmuhammed@steppetrip.kz': '123456',
+  'dinmuhammed@admin.kz': '123456',
+};
+final Map<String, Map<String, dynamic>> liveTours = {};
+final Map<String, Map<String, dynamic>> liveBookings = {};
+final List<Map<String, dynamic>> liveReviews = [];
+
+bool sqliteNeedsSync = false;
+
+void initDefaultMemoryState() {
+  final admin = MockDataService.currentUser.toMap();
+  liveUsers[admin['email'].toString().toLowerCase()] = admin;
+
+  for (var t in MockDataService.tourPlaces) {
+    liveTours[t.id] = t.toMap();
+  }
+  for (var b in MockDataService.mockBookings) {
+    liveBookings[b.id] = b.toMap();
+  }
+  liveBookings['BK-2026-TEST'] = {
+    'id': 'BK-2026-TEST',
+    'tourId': 'tp_01',
+    'tourName': 'Көлсай және Қайыңды көлдері',
+    'date': '15.11.2026',
+    'peopleCount': 2,
+    'totalPrice': 45000,
+    'status': BookingStatus.confirmed.name,
+    'clientName': 'Дінмұхаммед Бақытұлы',
+    'clientPhone': '+7 (708) 555-44-33',
+    'notes': 'Тур билеті сәтті расталған',
+  };
+  liveReviews.add(const ReviewModel(
+    id: 'rev_01',
+    tourId: 'tp_01',
+    userName: 'Айгүл Серікқызы',
+    rating: 5,
+    comment: 'Көлсай мен Қайыңды көлдері керемет әсер қалдырды!',
+    date: '15 Қазан 2026',
+    tags: ['Таза ауа', 'Керемет гид', 'Әдемі көрініс'],
+    userAvatar: '',
+  ).toMap());
 }
 
-Future<void> ensureSeeded() async {
-  final db = await openSteppeDb();
+void loadJsonMirror() {
   try {
-    final usersCount = await db.rawQuery('SELECT COUNT(*) as cnt FROM users');
-    final toursCount = await db.rawQuery('SELECT COUNT(*) as cnt FROM tours');
-    final uCnt = (usersCount.first['cnt'] as int?) ?? 0;
-    final tCnt = (toursCount.first['cnt'] as int?) ?? 0;
+    final file = File(jsonMirrorPath);
+    if (!file.existsSync()) return;
+    final data = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+    if (data['users'] is List) {
+      for (var u in (data['users'] as List)) {
+        final m = Map<String, dynamic>.from(u as Map);
+        liveUsers[m['email'].toString().toLowerCase()] = m;
+      }
+    }
+    if (data['passwords'] is Map) {
+      (data['passwords'] as Map).forEach((k, v) {
+        livePasswords[k.toString().toLowerCase()] = v.toString();
+      });
+    }
+    if (data['tours'] is List) {
+      liveTours.clear();
+      for (var t in (data['tours'] as List)) {
+        final m = Map<String, dynamic>.from(t as Map);
+        liveTours[m['id'].toString()] = m;
+      }
+    }
+    if (data['bookings'] is List) {
+      liveBookings.clear();
+      for (var b in (data['bookings'] as List)) {
+        final m = Map<String, dynamic>.from(b as Map);
+        liveBookings[m['id'].toString()] = m;
+      }
+    }
+  } catch (_) {}
+}
 
-    // Ensure admin user exists
-    await db.insert('users', MockDataService.currentUser.toMap(),
-        conflictAlgorithm: ConflictAlgorithm.replace);
-    await db.insert(
-      'user_passwords',
-      {'email': 'dinmuhammed@steppetrip.kz', 'password': '123456'},
-      conflictAlgorithm: ConflictAlgorithm.replace,
+void saveJsonMirror() {
+  try {
+    final file = File(jsonMirrorPath);
+    file.writeAsStringSync(jsonEncode({
+      'users': liveUsers.values.toList(),
+      'passwords': livePasswords,
+      'tours': liveTours.values.toList(),
+      'bookings': liveBookings.values.toList(),
+      'reviews': liveReviews,
+    }));
+  } catch (_) {}
+}
+
+Future<void> syncToSqliteFile() async {
+  Database? db;
+  try {
+    db = await databaseFactoryFfi.openDatabase(
+      dbPath,
+      options: OpenDatabaseOptions(singleInstance: false),
     );
+    await db.execute('PRAGMA busy_timeout = 1500');
 
-    if (tCnt == 0) {
-      for (var place in MockDataService.tourPlaces) {
-        await db.insert('tours', place.toMap(),
-            conflictAlgorithm: ConflictAlgorithm.replace);
+    // Read existing users from SQLite first so we don't lose anything added in DB Browser
+    try {
+      final existingUsers = await db.query('users');
+      for (var row in existingUsers) {
+        final email = (row['email'] ?? '').toString().toLowerCase();
+        if (email.isNotEmpty && !liveUsers.containsKey(email)) {
+          // Skip deleted demo users if they were old
+          if (!email.contains('alisher') && !email.contains('aruzhan') && !email.contains('bauyrzhan')) {
+            liveUsers[email] = {
+              'id': row['id'] ?? 'usr_db',
+              'fullName': row['fullName'] ?? 'Пайдаланушы',
+              'email': email,
+              'phone': row['phone'] ?? '',
+              'avatarUrl': row['avatarUrl'] ?? '',
+              'preferredLanguage': row['preferredLanguage'] ?? 'Қазақша',
+              'completedTours': row['completedTours'] ?? 0,
+              'role': row['role'] ?? 'tourist',
+              'isApproved': row['isApproved'] ?? 1,
+            };
+          }
+        }
       }
+    } catch (_) {}
+
+    // Try writing current state into SQLite tables
+    try {
+      await db.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'tourist'");
+    } catch (_) {}
+    try {
+      await db.execute("ALTER TABLE users ADD COLUMN isApproved INTEGER NOT NULL DEFAULT 1");
+    } catch (_) {}
+
+    for (var u in liveUsers.values) {
+      await db.insert('users', u, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+    for (var t in liveTours.values) {
+      await db.insert('tours', t, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+    for (var b in liveBookings.values) {
+      await db.insert('bookings', b, conflictAlgorithm: ConflictAlgorithm.replace);
     }
 
-    final bookingsCount = await db.rawQuery('SELECT COUNT(*) as cnt FROM bookings');
-    final bCnt = (bookingsCount.first['cnt'] as int?) ?? 0;
-    if (bCnt == 0) {
-      for (var booking in MockDataService.mockBookings) {
-        await db.insert('bookings', booking.toMap(),
-            conflictAlgorithm: ConflictAlgorithm.replace);
-      }
-      await db.insert(
-        'bookings',
-        {
-          'id': 'BK-2026-TEST',
-          'tourId': 'tp_01',
-          'tourName': 'Көлсай және Қайыңды көлдері',
-          'date': '15.11.2026',
-          'peopleCount': 2,
-          'totalPrice': 45000,
-          'status': BookingStatus.confirmed.name,
-          'clientName': 'Дінмұхаммед Бақытұлы',
-          'clientPhone': '+7 (708) 555-44-33',
-          'notes': 'Тур билеті сәтті расталған',
-        },
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
+    if (sqliteNeedsSync) {
+      print('[SQLite] steppetrip.db файлына барлық өзгерістер сәтті жазылды!');
+      sqliteNeedsSync = false;
     }
-
-    final reviewsCount = await db.rawQuery('SELECT COUNT(*) as cnt FROM reviews');
-    final rCnt = (reviewsCount.first['cnt'] as int?) ?? 0;
-    if (rCnt == 0) {
-      const rev = ReviewModel(
-        id: 'rev_01',
-        tourId: 'tp_01',
-        userName: 'Айгүл Серікқызы',
-        rating: 5,
-        comment: 'Көлсай мен Қайыңды көлдері керемет әсер қалдырды!',
-        date: '15 Қазан 2026',
-        tags: ['Таза ауа', 'Керемет гид', 'Әдемі көрініс'],
-        userAvatar: '',
-      );
-      await db.insert('reviews', rev.toMap(),
-          conflictAlgorithm: ConflictAlgorithm.replace);
-    }
-    print('SQLite базасы тексерілді: users=$uCnt, tours=$tCnt');
+  } catch (e) {
+    sqliteNeedsSync = true;
+    print('[SQLite Ескерту] steppetrip.db қазір DB Browser бағдарламасында құлыптаулы (locked). DB Browser-де "Write Changes / Записать изменения" бассаңыз, бірден жазылады.');
   } finally {
-    await db.close();
+    try {
+      await db?.close();
+    } catch (_) {}
   }
 }
 
@@ -194,28 +187,16 @@ Future<void> handleApiRequest(HttpRequest req) async {
   }
 
   final path = req.uri.path;
-  final db = await openSteppeDb();
 
   try {
     if (path == '/api/state' && req.method == 'GET') {
-      final users = await db.query('users');
-      final passRows = await db.query('user_passwords');
-      final tours = await db.query('tours', orderBy: 'rating DESC');
-      final bookings = await db.query('bookings', orderBy: 'id DESC');
-      final reviews = await db.query('reviews', orderBy: 'id DESC');
-
-      final Map<String, String> passwords = {};
-      for (var row in passRows) {
-        passwords[row['email'].toString()] = row['password'].toString();
-      }
-
       res.headers.contentType = ContentType.json;
       res.write(jsonEncode({
-        'users': users,
-        'passwords': passwords,
-        'tours': tours,
-        'bookings': bookings,
-        'reviews': reviews,
+        'users': liveUsers.values.toList(),
+        'passwords': livePasswords,
+        'tours': liveTours.values.toList(),
+        'bookings': liveBookings.values.toList(),
+        'reviews': liveReviews,
       }));
       await res.close();
       return;
@@ -231,30 +212,30 @@ Future<void> handleApiRequest(HttpRequest req) async {
         final password = body['password'] as String?;
         final email = (userMap['email'] as String).toLowerCase();
 
-        // Check existing user by email so we update same row if needed
-        final existing = await db.query('users', where: 'LOWER(email) = ?', whereArgs: [email]);
-        if (existing.isNotEmpty) {
-          userMap['id'] = existing.first['id'];
+        if (liveUsers.containsKey(email)) {
+          userMap['id'] = liveUsers[email]!['id'];
         }
-
-        await db.insert('users', userMap, conflictAlgorithm: ConflictAlgorithm.replace);
+        liveUsers[email] = userMap;
         if (password != null && password.isNotEmpty) {
-          await db.insert(
-            'user_passwords',
-            {'email': email, 'password': password},
-            conflictAlgorithm: ConflictAlgorithm.replace,
-          );
+          livePasswords[email] = password;
         }
-        print('[SQLite] Пайдаланушы сақталды: ${userMap['fullName']} ($email, role=${userMap['role']}, approved=${userMap['isApproved']})');
+        saveJsonMirror();
+        sqliteNeedsSync = true;
+        unawaited(syncToSqliteFile());
+
+        print('[База] Пайдаланушы сақталды: ${userMap['fullName']} ($email, role=${userMap['role']}, approved=${userMap['isApproved']})');
         res.headers.contentType = ContentType.json;
         res.write(jsonEncode({'ok': true, 'user': userMap}));
         await res.close();
         return;
       } else if (req.method == 'DELETE') {
         final email = (req.uri.queryParameters['email'] ?? body['email'] ?? '').toString().toLowerCase();
-        await db.delete('users', where: 'LOWER(email) = ?', whereArgs: [email]);
-        await db.delete('user_passwords', where: 'LOWER(email) = ?', whereArgs: [email]);
-        print('[SQLite] Пайдаланушы өшірілді: $email');
+        liveUsers.remove(email);
+        livePasswords.remove(email);
+        saveJsonMirror();
+        sqliteNeedsSync = true;
+        unawaited(syncToSqliteFile());
+
         res.headers.contentType = ContentType.json;
         res.write(jsonEncode({'ok': true}));
         await res.close();
@@ -264,16 +245,23 @@ Future<void> handleApiRequest(HttpRequest req) async {
 
     if (path == '/api/tours') {
       if (req.method == 'POST' || req.method == 'PUT') {
-        await db.insert('tours', body, conflictAlgorithm: ConflictAlgorithm.replace);
-        print('[SQLite] Тур сақталды: ${body['name']}');
+        final id = body['id'].toString();
+        liveTours[id] = body;
+        saveJsonMirror();
+        sqliteNeedsSync = true;
+        unawaited(syncToSqliteFile());
+
         res.headers.contentType = ContentType.json;
         res.write(jsonEncode({'ok': true}));
         await res.close();
         return;
       } else if (req.method == 'DELETE') {
         final id = (req.uri.queryParameters['id'] ?? body['id'] ?? '').toString();
-        await db.delete('tours', where: 'id = ?', whereArgs: [id]);
-        print('[SQLite] Тур өшірілді: $id');
+        liveTours.remove(id);
+        saveJsonMirror();
+        sqliteNeedsSync = true;
+        unawaited(syncToSqliteFile());
+
         res.headers.contentType = ContentType.json;
         res.write(jsonEncode({'ok': true}));
         await res.close();
@@ -283,26 +271,23 @@ Future<void> handleApiRequest(HttpRequest req) async {
 
     if (path == '/api/bookings') {
       if (req.method == 'POST' || req.method == 'PUT') {
-        await db.insert('bookings', body, conflictAlgorithm: ConflictAlgorithm.replace);
-        print('[SQLite] Брондау сақталды: ${body['id']} (${body['status']})');
+        final id = body['id'].toString();
+        liveBookings[id] = body;
+        saveJsonMirror();
+        sqliteNeedsSync = true;
+        unawaited(syncToSqliteFile());
+
         res.headers.contentType = ContentType.json;
         res.write(jsonEncode({'ok': true}));
         await res.close();
         return;
       } else if (req.method == 'DELETE') {
         final id = (req.uri.queryParameters['id'] ?? body['id'] ?? '').toString();
-        await db.delete('bookings', where: 'id = ?', whereArgs: [id]);
-        print('[SQLite] Брондау өшірілді: $id');
-        res.headers.contentType = ContentType.json;
-        res.write(jsonEncode({'ok': true}));
-        await res.close();
-        return;
-      }
-    }
+        liveBookings.remove(id);
+        saveJsonMirror();
+        sqliteNeedsSync = true;
+        unawaited(syncToSqliteFile());
 
-    if (path == '/api/reviews') {
-      if (req.method == 'POST') {
-        await db.insert('reviews', body, conflictAlgorithm: ConflictAlgorithm.replace);
         res.headers.contentType = ContentType.json;
         res.write(jsonEncode({'ok': true}));
         await res.close();
@@ -314,12 +299,10 @@ Future<void> handleApiRequest(HttpRequest req) async {
     res.write(jsonEncode({'error': 'Not found'}));
     await res.close();
   } catch (e, st) {
-    print('[SQLite Server Error] $e\n$st');
+    print('[Server Error] $e\n$st');
     res.statusCode = HttpStatus.internalServerError;
     res.write(jsonEncode({'error': e.toString()}));
     await res.close();
-  } finally {
-    await db.close();
   }
 }
 
@@ -369,9 +352,20 @@ void main() async {
 
   final projectDir = Directory.current.path;
   dbPath = p.join(projectDir, 'steppetrip.db');
+  jsonMirrorPath = p.join(projectDir, 'steppetrip_live_db.json');
   webBuildDir = p.join(projectDir, 'build', 'web');
 
-  await ensureSeeded();
+  initDefaultMemoryState();
+  loadJsonMirror();
+  saveJsonMirror();
+  await syncToSqliteFile();
+
+  // Retry syncing to SQLite every 4 seconds if DB Browser had locked it
+  Timer.periodic(const Duration(seconds: 4), (_) {
+    if (sqliteNeedsSync) {
+      syncToSqliteFile();
+    }
+  });
 
   final ports = [8080, 80];
   for (final port in ports) {
@@ -396,4 +390,3 @@ void main() async {
     }
   }
 }
-
