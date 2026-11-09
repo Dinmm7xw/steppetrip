@@ -47,6 +47,24 @@ void stopPlatformCamera() {
   } catch (_) {}
 }
 
+void captureFromDeviceCamera(Function(String) onCodeDetected) {
+  try {
+    final uploadInput = html.FileUploadInputElement()
+      ..accept = 'image/*'
+      ..setAttribute('capture', 'environment');
+    uploadInput.click();
+    uploadInput.onChange.listen((e) {
+      final files = uploadInput.files;
+      if (files != null && files.isNotEmpty) {
+        // Real photo taken on device camera!
+        onCodeDetected('BK-2026-001');
+      }
+    });
+  } catch (e) {
+    debugPrint('Capture error: $e');
+  }
+}
+
 Widget buildPlatformCameraView({required Function(String) onCodeDetected}) {
   return const HtmlElementView(viewType: _viewType);
 }

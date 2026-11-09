@@ -5,6 +5,7 @@ import 'database_helper.dart';
 import 'mock_data_service.dart';
 import 'tour_repository.dart';
 import 'notification_service.dart';
+import 'web_storage.dart';
 
 /// Модель сессии пользователя
 class UserSession {
@@ -58,6 +59,7 @@ class AuthService extends ChangeNotifier {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
 
   AuthService._internal() {
+    _loadFromStorage();
     // Әдепкі сессия: Дінмұхаммед (Әкімші)
     _currentUser = MockDataService.currentUser;
     _status = AuthStatus.authenticated;
@@ -68,6 +70,36 @@ class AuthService extends ChangeNotifier {
       loggedInAt: DateTime.now(),
       rememberMe: true,
     );
+  }
+
+  void _loadFromStorage() {
+    try {
+      final rawUsers = AppStorage.getItem('stp_users');
+      if (rawUsers != null && rawUsers.isNotEmpty) {
+        final List list = jsonDecode(rawUsers) as List;
+        for (var item in list) {
+          final u = UserModel.fromMap(Map<String, dynamic>.from(item as Map));
+          _usersByEmail[u.email.toLowerCase()] = u;
+          // Егер гид күтуде болса — хабарлама сервисіне қосу
+          if (u.isGuide && !u.isApproved) {
+            NotificationService.instance.addGuideApplication(u);
+          }
+        }
+      }
+      final rawPass = AppStorage.getItem('stp_passwords');
+      if (rawPass != null && rawPass.isNotEmpty) {
+        final Map map = jsonDecode(rawPass) as Map;
+        map.forEach((k, v) => _userPasswords[k.toString()] = v.toString());
+      }
+    } catch (_) {}
+  }
+
+  void _saveToStorage() {
+    try {
+      final list = _usersByEmail.values.map((u) => u.toMap()).toList();
+      AppStorage.setItem('stp_users', jsonEncode(list));
+      AppStorage.setItem('stp_passwords', jsonEncode(_userPasswords));
+    } catch (_) {}
   }
 
   AuthStatus _status = AuthStatus.authenticated;
@@ -359,6 +391,9 @@ class AuthService extends ChangeNotifier {
         NotificationService.instance.addGuideApplication(newUser);
       }
 
+      // Браузер жадына сақтау (келесі сессияда өшпеу үшін)
+      _saveToStorage();
+
       // TourRepository-мен синхрондау
       TourRepository.instance.setCurrentUser(newUser);
 
@@ -382,6 +417,7 @@ class AuthService extends ChangeNotifier {
         _currentUser = updated;
         TourRepository.instance.setCurrentUser(updated);
       }
+      _saveToStorage();
       NotificationService.instance.markGuideAsApproved(clean);
       notifyListeners();
     }
@@ -397,6 +433,7 @@ class AuthService extends ChangeNotifier {
         _currentUser = updated;
         TourRepository.instance.setCurrentUser(updated);
       }
+      _saveToStorage();
       notifyListeners();
     }
   }
@@ -411,11 +448,18 @@ class AuthService extends ChangeNotifier {
         _currentUser = updated;
         TourRepository.instance.setCurrentUser(updated);
       }
+      _saveToStorage();
       notifyListeners();
     }
   }
 
   void deleteUser(String email) {
+    final clean = email.toLowerCase();
+    _usersByEmail.remove(clean);
+    _userPasswords.remove(clean);
+    _saveToStorage();
+    notifyListeners();
+  }
     final clean = email.toLowerCase();
     _usersByEmail.remove(clean);
     _userPasswords.remove(clean);

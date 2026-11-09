@@ -8,4 +8,5 @@ Widget getRealCameraView({required Function(String) onCodeDetected}) {
 
 Future<bool> startRealCamera() => platform_cam.initPlatformCamera();
 void stopRealCamera() => platform_cam.stopPlatformCamera();
+void captureFromDeviceCamera(Function(String) onCodeDetected) => platform_cam.captureFromDeviceCamera(onCodeDetected);
 

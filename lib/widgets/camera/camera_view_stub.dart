@@ -6,4 +6,5 @@ Widget buildPlatformCameraView({required Function(String) onCodeDetected}) {
 
 Future<bool> initPlatformCamera() async => false;
 void stopPlatformCamera() {}
+void captureFromDeviceCamera(Function(String) onCodeDetected) {}
 

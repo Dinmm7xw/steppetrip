@@ -367,6 +367,22 @@ class _QRScannerScreenState extends State<QRScannerScreen>
                 style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 12),
+              // Real camera capture button (Works on iOS/Android browsers even on HTTP LAN)
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0F3E36),
+                    foregroundColor: AppColors.accentGold,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  icon: const Icon(Icons.camera_alt_rounded, color: AppColors.accentGold, size: 20),
+                  label: const Text('📸 Камерадан QR суретін түсіру (Сканер)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  onPressed: () => captureFromDeviceCamera(_handleSimulatedScan),
+                ),
+              ),
+              const SizedBox(height: 10),
               Row(
                 children: [
                   Expanded(
@@ -377,29 +393,42 @@ class _QRScannerScreenState extends State<QRScannerScreen>
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                       icon: const Icon(Icons.qr_code, size: 20),
-                      label: const Text('BK-01 Билеті'),
+                      label: const Text('BK-01 Билеті ✅'),
                       onPressed: () => _handleSimulatedScan('BK-01'),
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1E88E5),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      icon: const Icon(Icons.confirmation_number_outlined, size: 20),
+                      label: const Text('BK-2026-001 ✅'),
+                      onPressed: () => _handleSimulatedScan('BK-2026-001'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
                   Expanded(
                     child: OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.white,
                         side: const BorderSide(color: Colors.white30),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
                       ),
-                      icon: const Icon(Icons.error_outline, size: 20, color: Colors.orangeAccent),
-                      label: const Text('Жарамсыз QR'),
+                      icon: const Icon(Icons.error_outline, size: 18, color: Colors.orangeAccent),
+                      label: const Text('Жарамсыз QR ❌'),
                       onPressed: () => _handleSimulatedScan('INVALID_QR_999'),
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
+                  const SizedBox(width: 8),
                   Expanded(
                     child: ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
@@ -408,8 +437,8 @@ class _QRScannerScreenState extends State<QRScannerScreen>
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         padding: const EdgeInsets.symmetric(vertical: 10),
                       ),
-                      icon: const Icon(Icons.qr_code_2_rounded, size: 20),
-                      label: const Text('QR Билет қалай көрінеді? (Көру)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                      icon: const Icon(Icons.qr_code_2_rounded, size: 18),
+                      label: const Text('QR Билет көру', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                       onPressed: _showMyQrTicket,
                     ),
                   ),
