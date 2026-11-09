@@ -26,6 +26,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     _tabController = TabController(length: 3, vsync: this);
     _repo.addListener(_onChanged);
     _auth.addListener(_onChanged);
+    _auth.syncUsersFromDatabase();
   }
 
   @override
@@ -141,6 +142,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   }
 
   void _simulateNewGuideRegistration() async {
+    final adminUser = _auth.currentUser;
     final success = await _auth.register(
       fullName: 'Арман Қайратұлы (Жаңа Гид)',
       email: 'guide.arman_${DateTime.now().millisecondsSinceEpoch % 1000}@steppetrip.kz',
@@ -148,10 +150,14 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
       password: '123456',
       role: 'guide',
     );
+    // Әкімші сессиясын сақтап қалу
+    if (adminUser != null && adminUser.isAdmin) {
+      await _auth.login(email: adminUser.email, password: '123456');
+    }
     if (mounted && success) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Жаңа гид тіркелді! Ол әкімші мақұлдауын күтіп тұр ⏳'),
+          content: Text('Жаңа гид SQLite базасына қосылды! Мақұлдауды күтуде ⏳'),
           backgroundColor: Color(0xFFF57F17),
         ),
       );
@@ -181,6 +187,22 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         ),
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
+          IconButton(
+            tooltip: 'SQLite базасынан жаңарту',
+            icon: const Icon(Icons.sync_rounded, color: Colors.white),
+            onPressed: () async {
+              await _auth.syncUsersFromDatabase();
+              await _repo.syncWithServer();
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('SQLite деректер қорынан сәтті жаңартылды!'),
+                    duration: Duration(seconds: 1),
+                  ),
+                );
+              }
+            },
+          ),
           IconButton(
             tooltip: 'QR Сканер (Тексеру)',
             icon: const Icon(Icons.qr_code_scanner, color: AppColors.accentGold),

@@ -15,19 +15,30 @@ void main() async {
 
   print('Жаңа SQLite файл жасалуда: $dbPath');
 
-  // Егер ескі файл болса, жаңасын жазу
+  // Егер ескі файл болса және бос болса өшіреміз, ал ашық тұрса үстінен жаңартамыз
   final file = File(dbPath);
   if (await file.exists()) {
-    await file.delete();
+    try {
+      await file.delete();
+    } catch (_) {
+      print('Ескерту: steppetrip.db басқа бағдарламада ашық тұр, кестелер тікелей жаңартылады...');
+    }
   }
 
   final db = await openDatabase(
     dbPath,
-    version: 1,
-    onCreate: (db, version) async {
-      // 1. Tours
+    version: 2,
+    onUpgrade: (db, oldV, newV) async {
+      try {
+        await db.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'tourist'");
+      } catch (_) {}
+      try {
+        await db.execute("ALTER TABLE users ADD COLUMN isApproved INTEGER NOT NULL DEFAULT 1");
+      } catch (_) {}
+    },
+    onOpen: (db) async {
       await db.execute('''
-        CREATE TABLE tours (
+        CREATE TABLE IF NOT EXISTS tours (
           id TEXT PRIMARY KEY,
           name TEXT NOT NULL,
           region TEXT NOT NULL,
@@ -42,10 +53,8 @@ void main() async {
           isFavorite INTEGER NOT NULL DEFAULT 0
         )
       ''');
-
-      // 2. Bookings
       await db.execute('''
-        CREATE TABLE bookings (
+        CREATE TABLE IF NOT EXISTS bookings (
           id TEXT PRIMARY KEY,
           tourId TEXT NOT NULL,
           tourName TEXT NOT NULL,
@@ -58,10 +67,8 @@ void main() async {
           notes TEXT
         )
       ''');
-
-      // 3. Reviews
       await db.execute('''
-        CREATE TABLE reviews (
+        CREATE TABLE IF NOT EXISTS reviews (
           id TEXT PRIMARY KEY,
           tourId TEXT NOT NULL,
           userName TEXT NOT NULL,
@@ -72,56 +79,47 @@ void main() async {
           userAvatar TEXT
         )
       ''');
-
-      // 4. Categories
       await db.execute('''
-        CREATE TABLE categories (
+        CREATE TABLE IF NOT EXISTS categories (
           id TEXT PRIMARY KEY,
           name TEXT NOT NULL UNIQUE,
           iconName TEXT NOT NULL,
           placesCount INTEGER NOT NULL DEFAULT 0
         )
       ''');
-
-      // 5. Users
       await db.execute('''
-        CREATE TABLE users (
+        CREATE TABLE IF NOT EXISTS users (
           id TEXT PRIMARY KEY,
           fullName TEXT NOT NULL,
           email TEXT NOT NULL,
           phone TEXT NOT NULL,
           avatarUrl TEXT NOT NULL,
           preferredLanguage TEXT NOT NULL,
-          completedTours INTEGER NOT NULL DEFAULT 0
+          completedTours INTEGER NOT NULL DEFAULT 0,
+          role TEXT NOT NULL DEFAULT 'tourist',
+          isApproved INTEGER NOT NULL DEFAULT 1
         )
       ''');
-
-      // 6. Favorites
       await db.execute('''
-        CREATE TABLE favorites (
+        CREATE TABLE IF NOT EXISTS favorites (
           id TEXT PRIMARY KEY,
           userId TEXT NOT NULL,
           tourId TEXT NOT NULL,
           addedAt TEXT NOT NULL
         )
       ''');
+      try {
+        await db.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'tourist'");
+      } catch (_) {}
+      try {
+        await db.execute("ALTER TABLE users ADD COLUMN isApproved INTEGER NOT NULL DEFAULT 1");
+      } catch (_) {}
 
-      // Seed initial data
+      // Seed initial data with ConflictAlgorithm.replace
       print('Деректер базаға толтырылуда...');
+      await db.delete('users');
+      await db.insert('users', MockDataService.currentUser.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
 
-      // Users
-      await db.insert('users', MockDataService.currentUser.toMap());
-      await db.insert('users', {
-        'id': 'usr_02',
-        'fullName': 'Дінмұхаммед Сұлтан',
-        'email': 'dinmuhammed@steppetrip.kz',
-        'phone': '+7 (708) 555-44-33',
-        'avatarUrl': 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde',
-        'preferredLanguage': 'Қазақша',
-        'completedTours': 5,
-      });
-
-      // Categories
       final categoriesData = [
         {'id': 'cat_01', 'name': 'Көлдер мен таулар', 'iconName': 'landscape', 'placesCount': 1},
         {'id': 'cat_02', 'name': 'Тарихи орындар', 'iconName': 'account_balance', 'placesCount': 1},
@@ -130,40 +128,45 @@ void main() async {
         {'id': 'cat_05', 'name': 'Эко-турлар', 'iconName': 'eco', 'placesCount': 1},
       ];
       for (var cat in categoriesData) {
-        await db.insert('categories', cat);
+        await db.insert('categories', cat, conflictAlgorithm: ConflictAlgorithm.replace);
       }
 
-      // Tours
       for (var place in MockDataService.tourPlaces) {
-        await db.insert('tours', place.toMap());
+        await db.insert('tours', place.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
         if (place.isFavorite) {
-          await db.insert('favorites', {
-            'id': 'fav_${place.id}',
-            'userId': MockDataService.currentUser.id,
-            'tourId': place.id,
-            'addedAt': DateTime.now().toIso8601String(),
-          });
+          await db.insert(
+            'favorites',
+            {
+              'id': 'fav_${place.id}',
+              'userId': MockDataService.currentUser.id,
+              'tourId': place.id,
+              'addedAt': DateTime.now().toIso8601String(),
+            },
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
         }
       }
 
-      // Bookings
       for (var booking in MockDataService.mockBookings) {
-        await db.insert('bookings', booking.toMap());
+        await db.insert('bookings', booking.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
       }
-      await db.insert('bookings', {
-        'id': 'BK-2026-TEST',
-        'tourId': 'tp_01',
-        'tourName': 'Көлсай және Қайыңды көлдері',
-        'date': '15.11.2026',
-        'peopleCount': 2,
-        'totalPrice': 45000,
-        'status': BookingStatus.confirmed.name,
-        'clientName': 'Дінмұхаммед Сұлтан',
-        'clientPhone': '+7 (708) 555-44-33',
-        'notes': 'Тур билеті сәтті расталған',
-      });
+      await db.insert(
+        'bookings',
+        {
+          'id': 'BK-2026-TEST',
+          'tourId': 'tp_01',
+          'tourName': 'Көлсай және Қайыңды көлдері',
+          'date': '15.11.2026',
+          'peopleCount': 2,
+          'totalPrice': 45000,
+          'status': BookingStatus.confirmed.name,
+          'clientName': 'Дінмұхаммед Бақытұлы',
+          'clientPhone': '+7 (708) 555-44-33',
+          'notes': 'Тур билеті сәтті расталған',
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
 
-      // Reviews
       final initialReviews = [
         const ReviewModel(
           id: 'rev_01',
@@ -187,9 +190,10 @@ void main() async {
         ),
       ];
       for (var rev in initialReviews) {
-        await db.insert('reviews', rev.toMap());
+        await db.insert('reviews', rev.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
       }
     },
+    onCreate: (db, version) async {},
   );
 
   await db.close();

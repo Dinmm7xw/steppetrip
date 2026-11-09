@@ -47,6 +47,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _repo.addListener(_onRepoChanged);
     AuthService.instance.addListener(_onAuthChanged);
     NotificationService.instance.addListener(_onAuthChanged);
+    AuthService.instance.syncUsersFromDatabase();
   }
 
   @override
@@ -401,7 +402,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return SafeArea(
       child: RefreshIndicator(
-        onRefresh: () => _repo.syncWithServer(),
+        onRefresh: () async {
+          await AuthService.instance.syncUsersFromDatabase();
+          await _repo.syncWithServer();
+        },
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
@@ -436,19 +440,27 @@ class _HomeScreenState extends State<HomeScreen> {
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                                   decoration: BoxDecoration(
-                                    color: ((AuthService.instance.currentUser ?? _repo.currentUser)?.isGuide ?? false)
-                                        ? AppColors.accentGold.withOpacity(0.18)
-                                        : AppColors.primary.withOpacity(0.12),
+                                    color: ((AuthService.instance.currentUser ?? _repo.currentUser)?.isAdmin ?? false)
+                                        ? const Color(0xFFFFF3E0)
+                                        : ((AuthService.instance.currentUser ?? _repo.currentUser)?.isGuide ?? false)
+                                            ? AppColors.accentGold.withOpacity(0.18)
+                                            : AppColors.primary.withOpacity(0.12),
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: Text(
-                                    ((AuthService.instance.currentUser ?? _repo.currentUser)?.isGuide ?? false) ? 'ГИД 🏅' : 'ТУРИСТ 🎒',
+                                    ((AuthService.instance.currentUser ?? _repo.currentUser)?.isAdmin ?? false)
+                                        ? 'ӘКІМШІ 👑'
+                                        : ((AuthService.instance.currentUser ?? _repo.currentUser)?.isGuide ?? false)
+                                            ? 'ГИД 🏅'
+                                            : 'ТУРИСТ 🎒',
                                     style: TextStyle(
                                       fontSize: 9,
                                       fontWeight: FontWeight.bold,
-                                      color: ((AuthService.instance.currentUser ?? _repo.currentUser)?.isGuide ?? false)
-                                          ? const Color(0xFFB78103)
-                                          : AppColors.primary,
+                                      color: ((AuthService.instance.currentUser ?? _repo.currentUser)?.isAdmin ?? false)
+                                          ? const Color(0xFFE65100)
+                                          : ((AuthService.instance.currentUser ?? _repo.currentUser)?.isGuide ?? false)
+                                              ? const Color(0xFFB78103)
+                                              : AppColors.primary,
                                     ),
                                   ),
                                 ),
@@ -470,6 +482,22 @@ class _HomeScreenState extends State<HomeScreen> {
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          if ((AuthService.instance.currentUser ?? _repo.currentUser)?.isAdmin ?? false) ...[
+                            IconButton(
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.all(4),
+                              constraints: const BoxConstraints(),
+                              tooltip: 'Басқару тақтасы (Admin Panel)',
+                              icon: const Icon(Icons.admin_panel_settings_rounded, color: Color(0xFFE65100), size: 24),
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (context) => const AdminPanelScreen()),
+                                );
+                              },
+                            ),
+                            const SizedBox(width: 4),
+                          ],
                           IconButton(
                             visualDensity: VisualDensity.compact,
                             padding: const EdgeInsets.all(4),
@@ -481,19 +509,20 @@ class _HomeScreenState extends State<HomeScreen> {
                             },
                           ),
                           const SizedBox(width: 4),
-                          if ((AuthService.instance.currentUser ?? _repo.currentUser)?.isGuide ?? false)
+                          if (((AuthService.instance.currentUser ?? _repo.currentUser)?.isGuide ?? false) ||
+                              ((AuthService.instance.currentUser ?? _repo.currentUser)?.isAdmin ?? false))
                             IconButton(
                               visualDensity: VisualDensity.compact,
                               padding: const EdgeInsets.all(4),
                               constraints: const BoxConstraints(),
-                              tooltip: 'Билеттерді тексеру (Гид Сканері)',
+                              tooltip: 'Билеттерді тексеру (Гид/Админ Сканері)',
                               icon: const Icon(Icons.qr_code_scanner, color: AppColors.primary, size: 24),
                               onPressed: () {
                                 final active = (AuthService.instance.currentUser ?? _repo.currentUser);
                                 if (active?.isGuide == true && active?.isApproved == false) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
-                                      content: Text('⏳ Гид аккаунты әкімші тексеруінде (Профильде мақұлдаңыз)'),
+                                      content: Text('⏳ Гид аккаунты әкімші тексеруінде (Админ мақұлдауын күтуде)'),
                                       backgroundColor: Color(0xFFF57F17),
                                     ),
                                   );

@@ -5,4 +5,6 @@ class AppStorage {
   static void setItem(String key, String value) => storage_impl.WebStorage.setItem(key, value);
   static String? getItem(String key) => storage_impl.WebStorage.getItem(key);
   static void removeItem(String key) => storage_impl.WebStorage.removeItem(key);
+  static String getApiBaseUrl() => storage_impl.WebStorage.getApiBaseUrl();
 }
+

@@ -21,4 +21,15 @@ class WebStorage {
       html.window.localStorage.remove(key);
     } catch (_) {}
   }
+
+  static String getApiBaseUrl() {
+    try {
+      final host = html.window.location.hostname;
+      if (host != null && host.isNotEmpty) {
+        return 'http://$host:8080';
+      }
+    } catch (_) {}
+    return 'http://localhost:8080';
+  }
 }
+

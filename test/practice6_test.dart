@@ -29,7 +29,9 @@ void main() {
               phone TEXT NOT NULL,
               avatarUrl TEXT NOT NULL,
               preferredLanguage TEXT NOT NULL,
-              completedTours INTEGER NOT NULL DEFAULT 0
+              completedTours INTEGER NOT NULL DEFAULT 0,
+              role TEXT NOT NULL DEFAULT 'tourist',
+              isApproved INTEGER NOT NULL DEFAULT 1
             )
           ''');
           await db.execute('''

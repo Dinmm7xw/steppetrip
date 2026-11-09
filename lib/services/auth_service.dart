@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import '../models/user_model.dart';
 import 'database_helper.dart';
 import 'mock_data_service.dart';
@@ -70,6 +72,106 @@ class AuthService extends ChangeNotifier {
       loggedInAt: DateTime.now(),
       rememberMe: true,
     );
+    syncUsersFromDatabase();
+  }
+
+  Future<void> syncUsersFromDatabase() async {
+    bool changed = false;
+    // 1. Локалды SQLite базасынан оқу (Desktop/Mobile)
+    if (!kIsWeb) {
+      try {
+        final db = await _dbHelper.database;
+        final rows = await db.query('users');
+        for (var row in rows) {
+          final u = UserModel.fromMap(row);
+          final key = u.email.toLowerCase();
+          _usersByEmail[key] = u;
+          _userPasswords.putIfAbsent(key, () => '123456');
+          if (u.isGuide && !u.isApproved) {
+            NotificationService.instance.addGuideApplication(u);
+          }
+          changed = true;
+        }
+      } catch (_) {}
+    }
+
+    // 2. Орталық SQLite HTTP серверінен оқу (Web + Телефон + Компьютер синхрондауы)
+    try {
+      final baseUrl = AppStorage.getApiBaseUrl();
+      final res = await http
+          .get(Uri.parse('$baseUrl/api/state'))
+          .timeout(const Duration(milliseconds: 1500));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        final List usersList = (data['users'] as List?) ?? [];
+        final Map passMap = (data['passwords'] as Map?) ?? {};
+        passMap.forEach((k, v) {
+          _userPasswords[k.toString().toLowerCase()] = v.toString();
+        });
+        for (var item in usersList) {
+          final u = UserModel.fromMap(Map<String, dynamic>.from(item as Map));
+          final key = u.email.toLowerCase();
+          _usersByEmail[key] = u;
+          _userPasswords.putIfAbsent(key, () => '123456');
+          if (u.isGuide && !u.isApproved) {
+            NotificationService.instance.addGuideApplication(u);
+          } else if (u.isGuide && u.isApproved) {
+            NotificationService.instance.markGuideAsApproved(key);
+          }
+          changed = true;
+        }
+      }
+    } catch (_) {}
+
+    if (changed) {
+      _saveToStorage();
+      if (_currentUser != null) {
+        final updatedMe = _usersByEmail[_currentUser!.email.toLowerCase()];
+        if (updatedMe != null) {
+          _currentUser = updatedMe;
+          TourRepository.instance.setCurrentUser(updatedMe);
+        }
+      }
+      notifyListeners();
+    }
+  }
+
+  Future<void> _pushUserToDatabase(UserModel user, {String? password}) async {
+    if (!kIsWeb) {
+      try {
+        final db = await _dbHelper.database;
+        await db.insert('users', user.toMap(),
+            conflictAlgorithm: ConflictAlgorithm.replace);
+      } catch (_) {}
+    }
+    try {
+      final baseUrl = AppStorage.getApiBaseUrl();
+      await http
+          .post(
+            Uri.parse('$baseUrl/api/users'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'user': user.toMap(),
+              if (password != null) 'password': password,
+            }),
+          )
+          .timeout(const Duration(milliseconds: 1500));
+    } catch (_) {}
+  }
+
+  Future<void> _deleteUserFromDatabase(String email) async {
+    if (!kIsWeb) {
+      try {
+        final db = await _dbHelper.database;
+        await db.delete('users', where: 'LOWER(email) = ?', whereArgs: [email]);
+      } catch (_) {}
+    }
+    try {
+      final baseUrl = AppStorage.getApiBaseUrl();
+      await http
+          .delete(Uri.parse('$baseUrl/api/users?email=${Uri.encodeComponent(email)}'))
+          .timeout(const Duration(milliseconds: 1500));
+    } catch (_) {}
   }
 
   void _loadFromStorage() {
@@ -233,8 +335,11 @@ class AuthService extends ChangeNotifier {
     _successMessage = null;
     notifyListeners();
 
+    // Алдымен орталық SQLite базасынан пайдаланушыларды синхрондау
+    await syncUsersFromDatabase();
+
     // Желі/сұрау уақытын модельдеу
-    await Future.delayed(const Duration(milliseconds: 600));
+    await Future.delayed(const Duration(milliseconds: 300));
 
     final cleanEmail = email.trim().toLowerCase();
 
@@ -362,13 +467,8 @@ class AuthService extends ChangeNotifier {
       _savedEmail = cleanEmail;
       _savedPassword = password;
 
-      // SQLite-қа қолданушыны жазу (егер web емес болса)
-      if (!kIsWeb) {
-        try {
-          final db = await _dbHelper.database;
-          await db.insert('users', newUser.toMap());
-        } catch (_) {}
-      }
+      // SQLite базасына (және орталық серверге) қолданушыны жазу
+      await _pushUserToDatabase(newUser, password: password);
 
       // 5. Сессияны автоматты түрде ашу
       _currentSession = UserSession(
@@ -418,6 +518,7 @@ class AuthService extends ChangeNotifier {
         TourRepository.instance.setCurrentUser(updated);
       }
       _saveToStorage();
+      _pushUserToDatabase(updated);
       NotificationService.instance.markGuideAsApproved(clean);
       notifyListeners();
     }
@@ -434,6 +535,7 @@ class AuthService extends ChangeNotifier {
         TourRepository.instance.setCurrentUser(updated);
       }
       _saveToStorage();
+      _pushUserToDatabase(updated);
       notifyListeners();
     }
   }
@@ -449,6 +551,7 @@ class AuthService extends ChangeNotifier {
         TourRepository.instance.setCurrentUser(updated);
       }
       _saveToStorage();
+      _pushUserToDatabase(updated);
       notifyListeners();
     }
   }
@@ -458,11 +561,7 @@ class AuthService extends ChangeNotifier {
     _usersByEmail.remove(clean);
     _userPasswords.remove(clean);
     _saveToStorage();
-    notifyListeners();
-  }
-    final clean = email.toLowerCase();
-    _usersByEmail.remove(clean);
-    _userPasswords.remove(clean);
+    _deleteUserFromDatabase(clean);
     notifyListeners();
   }
 

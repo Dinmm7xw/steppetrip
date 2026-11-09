@@ -1,5 +1,7 @@
 // Database helper for SteppeTrip app with Web and Mobile support
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -10,6 +12,7 @@ import '../models/review_model.dart';
 import '../models/category_model.dart';
 import '../models/user_model.dart';
 import 'mock_data_service.dart';
+import 'web_storage.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -40,7 +43,41 @@ class DatabaseHelper {
     const CategoryModel(id: 'cat_05', name: 'Эко-турлар', iconName: 'eco', placesCount: 1),
   ];
 
-  DatabaseHelper._init();
+  DatabaseHelper._init() {
+    _loadWebStorage();
+  }
+
+  static void _loadWebStorage() {
+    try {
+      final rawTours = AppStorage.getItem('stp_db_tours');
+      if (rawTours != null && rawTours.isNotEmpty) {
+        final List list = jsonDecode(rawTours) as List;
+        if (list.isNotEmpty) {
+          _webTours.clear();
+          for (var item in list) {
+            _webTours.add(TourPlace.fromMap(Map<String, dynamic>.from(item as Map)));
+          }
+        }
+      }
+      final rawBookings = AppStorage.getItem('stp_db_bookings');
+      if (rawBookings != null && rawBookings.isNotEmpty) {
+        final List list = jsonDecode(rawBookings) as List;
+        if (list.isNotEmpty) {
+          _webBookings.clear();
+          for (var item in list) {
+            _webBookings.add(BookingModel.fromMap(Map<String, dynamic>.from(item as Map)));
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  static void _saveWebStorage() {
+    try {
+      AppStorage.setItem('stp_db_tours', jsonEncode(_webTours.map((t) => t.toMap()).toList()));
+      AppStorage.setItem('stp_db_bookings', jsonEncode(_webBookings.map((b) => b.toMap()).toList()));
+    } catch (_) {}
+  }
 
   Future<Database> get database async {
     if (_database != null) return _database!;
@@ -78,7 +115,9 @@ class DatabaseHelper {
 
     String path;
     try {
-      if (!kIsWeb) {
+      if (!kIsWeb && (defaultTargetPlatform == TargetPlatform.windows || defaultTargetPlatform == TargetPlatform.linux)) {
+        path = filePath;
+      } else if (!kIsWeb) {
         final appDocDir = await getApplicationDocumentsDirectory();
         path = join(appDocDir.path, filePath);
       } else {
@@ -97,8 +136,31 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: _createDB,
+      onUpgrade: (db, oldVersion, newVersion) async {
+        try {
+          await db.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'tourist'");
+        } catch (_) {}
+        try {
+          await db.execute("ALTER TABLE users ADD COLUMN isApproved INTEGER NOT NULL DEFAULT 1");
+        } catch (_) {}
+      },
+      onOpen: (db) async {
+        try {
+          await db.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'tourist'");
+        } catch (_) {}
+        try {
+          await db.execute("ALTER TABLE users ADD COLUMN isApproved INTEGER NOT NULL DEFAULT 1");
+        } catch (_) {}
+        try {
+          final cntRes = await db.rawQuery('SELECT COUNT(*) as cnt FROM tours');
+          final cnt = (cntRes.first['cnt'] as int?) ?? 0;
+          if (cnt == 0) {
+            await _seedInitialData(db);
+          }
+        } catch (_) {}
+      },
       onConfigure: _onConfigure,
     );
   }
@@ -172,7 +234,9 @@ class DatabaseHelper {
         phone TEXT NOT NULL,
         avatarUrl TEXT NOT NULL,
         preferredLanguage TEXT NOT NULL,
-        completedTours INTEGER NOT NULL DEFAULT 0
+        completedTours INTEGER NOT NULL DEFAULT 0,
+        role TEXT NOT NULL DEFAULT 'tourist',
+        isApproved INTEGER NOT NULL DEFAULT 1
       )
     ''');
 
@@ -191,7 +255,7 @@ class DatabaseHelper {
   }
 
   Future<void> _seedInitialData(Database db) async {
-    await db.insert('users', MockDataService.currentUser.toMap());
+    await db.insert('users', MockDataService.currentUser.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
     final categoriesData = [
       {'id': 'cat_01', 'name': 'Көлдер мен таулар', 'iconName': 'landscape', 'placesCount': 1},
       {'id': 'cat_02', 'name': 'Тарихи орындар', 'iconName': 'account_balance', 'placesCount': 1},
@@ -200,21 +264,21 @@ class DatabaseHelper {
       {'id': 'cat_05', 'name': 'Эко-турлар', 'iconName': 'eco', 'placesCount': 1},
     ];
     for (var cat in categoriesData) {
-      await db.insert('categories', cat);
+      await db.insert('categories', cat, conflictAlgorithm: ConflictAlgorithm.replace);
     }
     for (var place in MockDataService.tourPlaces) {
-      await db.insert('tours', place.toMap());
+      await db.insert('tours', place.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
       if (place.isFavorite) {
         await db.insert('favorites', {
           'id': 'fav_${place.id}',
           'userId': MockDataService.currentUser.id,
           'tourId': place.id,
           'addedAt': DateTime.now().toIso8601String(),
-        });
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
       }
     }
     for (var booking in MockDataService.mockBookings) {
-      await db.insert('bookings', booking.toMap());
+      await db.insert('bookings', booking.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
     }
     final initialReviews = [
       const ReviewModel(
@@ -229,23 +293,29 @@ class DatabaseHelper {
       ),
     ];
     for (var rev in initialReviews) {
-      await db.insert('reviews', rev.toMap());
+      await db.insert('reviews', rev.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
     }
   }
 
   // ==================== TOURS CRUD ====================
   Future<int> insertTour(TourPlace tour) async {
+    _webTours.removeWhere((t) => t.id == tour.id);
+    _webTours.insert(0, tour);
+    _saveWebStorage();
     if (kIsWeb) {
-      _webTours.removeWhere((t) => t.id == tour.id);
-      _webTours.insert(0, tour);
+      try {
+        http.post(
+          Uri.parse('${AppStorage.getApiBaseUrl()}/api/tours'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(tour.toMap()),
+        );
+      } catch (_) {}
       return 1;
     }
     try {
       final db = await database;
       return await db.insert('tours', tour.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
     } catch (_) {
-      _webTours.removeWhere((t) => t.id == tour.id);
-      _webTours.insert(0, tour);
       return 1;
     }
   }
@@ -255,7 +325,10 @@ class DatabaseHelper {
     try {
       final db = await database;
       final maps = await db.query('tours', orderBy: 'rating DESC');
-      return maps.map((m) => TourPlace.fromMap(m)).toList();
+      if (maps.isNotEmpty) {
+        return maps.map((m) => TourPlace.fromMap(m)).toList();
+      }
+      return List.from(_webTours);
     } catch (_) {
       return List.from(_webTours);
     }
@@ -286,31 +359,40 @@ class DatabaseHelper {
   }
 
   Future<int> updateTour(TourPlace tour) async {
+    final idx = _webTours.indexWhere((t) => t.id == tour.id);
+    if (idx != -1) _webTours[idx] = tour;
+    _saveWebStorage();
     if (kIsWeb) {
-      final idx = _webTours.indexWhere((t) => t.id == tour.id);
-      if (idx != -1) _webTours[idx] = tour;
+      try {
+        http.post(
+          Uri.parse('${AppStorage.getApiBaseUrl()}/api/tours'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(tour.toMap()),
+        );
+      } catch (_) {}
       return 1;
     }
     try {
       final db = await database;
       return await db.update('tours', tour.toMap(), where: 'id = ?', whereArgs: [tour.id]);
     } catch (_) {
-      final idx = _webTours.indexWhere((t) => t.id == tour.id);
-      if (idx != -1) _webTours[idx] = tour;
       return 1;
     }
   }
 
   Future<int> deleteTour(String id) async {
+    _webTours.removeWhere((t) => t.id == id);
+    _saveWebStorage();
     if (kIsWeb) {
-      _webTours.removeWhere((t) => t.id == id);
+      try {
+        http.delete(Uri.parse('${AppStorage.getApiBaseUrl()}/api/tours?id=${Uri.encodeComponent(id)}'));
+      } catch (_) {}
       return 1;
     }
     try {
       final db = await database;
       return await db.delete('tours', where: 'id = ?', whereArgs: [id]);
     } catch (_) {
-      _webTours.removeWhere((t) => t.id == id);
       return 1;
     }
   }
@@ -355,17 +437,23 @@ class DatabaseHelper {
 
   // ==================== BOOKINGS CRUD ====================
   Future<int> insertBooking(BookingModel booking) async {
+    _webBookings.removeWhere((b) => b.id == booking.id);
+    _webBookings.insert(0, booking);
+    _saveWebStorage();
     if (kIsWeb) {
-      _webBookings.removeWhere((b) => b.id == booking.id);
-      _webBookings.insert(0, booking);
+      try {
+        http.post(
+          Uri.parse('${AppStorage.getApiBaseUrl()}/api/bookings'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(booking.toMap()),
+        );
+      } catch (_) {}
       return 1;
     }
     try {
       final db = await database;
       return await db.insert('bookings', booking.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
     } catch (_) {
-      _webBookings.removeWhere((b) => b.id == booking.id);
-      _webBookings.insert(0, booking);
       return 1;
     }
   }
@@ -375,31 +463,44 @@ class DatabaseHelper {
     try {
       final db = await database;
       final maps = await db.query('bookings', orderBy: 'id DESC');
-      return maps.map((m) => BookingModel.fromMap(m)).toList();
+      if (maps.isNotEmpty) {
+        return maps.map((m) => BookingModel.fromMap(m)).toList();
+      }
+      return List.from(_webBookings);
     } catch (_) {
       return List.from(_webBookings);
     }
   }
 
   Future<int> updateBooking(BookingModel booking) async {
+    final idx = _webBookings.indexWhere((b) => b.id == booking.id);
+    if (idx != -1) _webBookings[idx] = booking;
+    _saveWebStorage();
     if (kIsWeb) {
-      final idx = _webBookings.indexWhere((b) => b.id == booking.id);
-      if (idx != -1) _webBookings[idx] = booking;
+      try {
+        http.post(
+          Uri.parse('${AppStorage.getApiBaseUrl()}/api/bookings'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(booking.toMap()),
+        );
+      } catch (_) {}
       return 1;
     }
     try {
       final db = await database;
       return await db.update('bookings', booking.toMap(), where: 'id = ?', whereArgs: [booking.id]);
     } catch (_) {
-      final idx = _webBookings.indexWhere((b) => b.id == booking.id);
-      if (idx != -1) _webBookings[idx] = booking;
       return 1;
     }
   }
 
   Future<int> deleteBooking(String id) async {
+    _webBookings.removeWhere((b) => b.id == id);
+    _saveWebStorage();
     if (kIsWeb) {
-      _webBookings.removeWhere((b) => b.id == id);
+      try {
+        http.delete(Uri.parse('${AppStorage.getApiBaseUrl()}/api/bookings?id=${Uri.encodeComponent(id)}'));
+      } catch (_) {}
       return 1;
     }
     try {
@@ -485,6 +586,19 @@ class DatabaseHelper {
     _webBookings.clear();
     _webBookings.addAll(MockDataService.mockBookings);
     _webUser = MockDataService.currentUser;
+    _saveWebStorage();
+    if (!kIsWeb) {
+      try {
+        final db = await database;
+        await db.delete('bookings');
+        await db.delete('favorites');
+        await db.delete('reviews');
+        await db.delete('tours');
+        await db.delete('categories');
+        await db.delete('users');
+        await _seedInitialData(db);
+      } catch (_) {}
+    }
   }
 
   Future<void> close() async {
