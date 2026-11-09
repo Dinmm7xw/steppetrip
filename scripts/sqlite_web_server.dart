@@ -367,7 +367,7 @@ void main() async {
     }
   });
 
-  final ports = [8080, 80];
+  final ports = [3000];
   for (final port in ports) {
     try {
       final server = await HttpServer.bind(InternetAddress.anyIPv4, port, shared: true);

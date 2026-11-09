@@ -13,6 +13,7 @@ import '../models/category_model.dart';
 import '../models/user_model.dart';
 import 'mock_data_service.dart';
 import 'web_storage.dart';
+import 'supabase_config.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -302,6 +303,11 @@ class DatabaseHelper {
     _webTours.removeWhere((t) => t.id == tour.id);
     _webTours.insert(0, tour);
     _saveWebStorage();
+    if (SupabaseConfig.isConfigured) {
+      try {
+        await SupabaseConfig.upsert('tours', tour.toMap());
+      } catch (_) {}
+    }
     if (kIsWeb) {
       try {
         http.post(
@@ -321,6 +327,19 @@ class DatabaseHelper {
   }
 
   Future<List<TourPlace>> getAllTours() async {
+    if (SupabaseConfig.isConfigured) {
+      try {
+        final rows = await SupabaseConfig.selectAll('tours');
+        if (rows.isNotEmpty) {
+          final loaded = rows.map((m) => TourPlace.fromMap(m)).toList();
+          _webTours
+            ..clear()
+            ..addAll(loaded);
+          _saveWebStorage();
+          return loaded;
+        }
+      } catch (_) {}
+    }
     if (kIsWeb) return List.from(_webTours);
     try {
       final db = await database;
@@ -362,6 +381,11 @@ class DatabaseHelper {
     final idx = _webTours.indexWhere((t) => t.id == tour.id);
     if (idx != -1) _webTours[idx] = tour;
     _saveWebStorage();
+    if (SupabaseConfig.isConfigured) {
+      try {
+        await SupabaseConfig.upsert('tours', tour.toMap());
+      } catch (_) {}
+    }
     if (kIsWeb) {
       try {
         http.post(
@@ -383,6 +407,11 @@ class DatabaseHelper {
   Future<int> deleteTour(String id) async {
     _webTours.removeWhere((t) => t.id == id);
     _saveWebStorage();
+    if (SupabaseConfig.isConfigured) {
+      try {
+        await SupabaseConfig.deleteByColumn('tours', 'id', id);
+      } catch (_) {}
+    }
     if (kIsWeb) {
       try {
         http.delete(Uri.parse('${AppStorage.getApiBaseUrl()}/api/tours?id=${Uri.encodeComponent(id)}'));
@@ -440,6 +469,11 @@ class DatabaseHelper {
     _webBookings.removeWhere((b) => b.id == booking.id);
     _webBookings.insert(0, booking);
     _saveWebStorage();
+    if (SupabaseConfig.isConfigured) {
+      try {
+        await SupabaseConfig.upsert('bookings', booking.toMap());
+      } catch (_) {}
+    }
     if (kIsWeb) {
       try {
         http.post(
@@ -459,6 +493,19 @@ class DatabaseHelper {
   }
 
   Future<List<BookingModel>> getAllBookings() async {
+    if (SupabaseConfig.isConfigured) {
+      try {
+        final rows = await SupabaseConfig.selectAll('bookings');
+        if (rows.isNotEmpty) {
+          final loaded = rows.map((m) => BookingModel.fromMap(m)).toList();
+          _webBookings
+            ..clear()
+            ..addAll(loaded);
+          _saveWebStorage();
+          return loaded;
+        }
+      } catch (_) {}
+    }
     if (kIsWeb) return List.from(_webBookings);
     try {
       final db = await database;
@@ -476,6 +523,11 @@ class DatabaseHelper {
     final idx = _webBookings.indexWhere((b) => b.id == booking.id);
     if (idx != -1) _webBookings[idx] = booking;
     _saveWebStorage();
+    if (SupabaseConfig.isConfigured) {
+      try {
+        await SupabaseConfig.upsert('bookings', booking.toMap());
+      } catch (_) {}
+    }
     if (kIsWeb) {
       try {
         http.post(
@@ -497,6 +549,11 @@ class DatabaseHelper {
   Future<int> deleteBooking(String id) async {
     _webBookings.removeWhere((b) => b.id == id);
     _saveWebStorage();
+    if (SupabaseConfig.isConfigured) {
+      try {
+        await SupabaseConfig.deleteByColumn('bookings', 'id', id);
+      } catch (_) {}
+    }
     if (kIsWeb) {
       try {
         http.delete(Uri.parse('${AppStorage.getApiBaseUrl()}/api/bookings?id=${Uri.encodeComponent(id)}'));
@@ -541,6 +598,11 @@ class DatabaseHelper {
   // ==================== REVIEWS CRUD ====================
   Future<int> insertReview(ReviewModel review) async {
     _webReviews.insert(0, review);
+    if (SupabaseConfig.isConfigured) {
+      try {
+        await SupabaseConfig.upsert('reviews', review.toMap());
+      } catch (_) {}
+    }
     if (kIsWeb) return 1;
     try {
       final db = await database;
@@ -551,6 +613,15 @@ class DatabaseHelper {
   }
 
   Future<List<ReviewModel>> getReviewsForTour(String tourId) async {
+    if (SupabaseConfig.isConfigured) {
+      try {
+        final rows = await SupabaseConfig.selectAll('reviews');
+        if (rows.isNotEmpty) {
+          final loaded = rows.map((m) => ReviewModel.fromMap(m)).toList();
+          return loaded.where((r) => r.tourId == tourId).toList();
+        }
+      } catch (_) {}
+    }
     if (kIsWeb) {
       return _webReviews.where((r) => r.tourId == tourId).toList();
     }

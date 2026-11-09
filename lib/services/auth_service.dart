@@ -8,6 +8,7 @@ import 'mock_data_service.dart';
 import 'tour_repository.dart';
 import 'notification_service.dart';
 import 'web_storage.dart';
+import 'supabase_config.dart';
 
 /// Модель сессии пользователя
 class UserSession {
@@ -77,6 +78,30 @@ class AuthService extends ChangeNotifier {
 
   Future<void> syncUsersFromDatabase() async {
     bool changed = false;
+    // 0. Supabase Cloud базасынан оқу (егер қосылған болса)
+    if (SupabaseConfig.isConfigured) {
+      try {
+        final rows = await SupabaseConfig.selectAll('users');
+        for (var row in rows) {
+          final u = UserModel.fromMap(row);
+          final key = u.email.toLowerCase();
+          _usersByEmail[key] = u;
+          final pwd = row['password']?.toString();
+          if (pwd != null && pwd.isNotEmpty) {
+            _userPasswords[key] = pwd;
+          } else {
+            _userPasswords.putIfAbsent(key, () => '123456');
+          }
+          if (u.isGuide && !u.isApproved) {
+            NotificationService.instance.addGuideApplication(u);
+          } else if (u.isGuide && u.isApproved) {
+            NotificationService.instance.markGuideAsApproved(key);
+          }
+          changed = true;
+        }
+      } catch (_) {}
+    }
+
     // 1. Локалды SQLite базасынан оқу (Desktop/Mobile)
     if (!kIsWeb) {
       try {
@@ -137,6 +162,14 @@ class AuthService extends ChangeNotifier {
   }
 
   Future<void> _pushUserToDatabase(UserModel user, {String? password}) async {
+    if (SupabaseConfig.isConfigured) {
+      try {
+        final row = Map<String, dynamic>.from(user.toMap());
+        row['password'] =
+            password ?? _userPasswords[user.email.toLowerCase()] ?? '123456';
+        await SupabaseConfig.upsert('users', row);
+      } catch (_) {}
+    }
     if (!kIsWeb) {
       try {
         final db = await _dbHelper.database;
@@ -160,6 +193,11 @@ class AuthService extends ChangeNotifier {
   }
 
   Future<void> _deleteUserFromDatabase(String email) async {
+    if (SupabaseConfig.isConfigured) {
+      try {
+        await SupabaseConfig.deleteByColumn('users', 'email', email);
+      } catch (_) {}
+    }
     if (!kIsWeb) {
       try {
         final db = await _dbHelper.database;

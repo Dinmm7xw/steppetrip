@@ -26,10 +26,10 @@ class WebStorage {
     try {
       final host = html.window.location.hostname;
       if (host != null && host.isNotEmpty) {
-        return 'http://$host:8080';
+        return 'http://$host:3000';
       }
     } catch (_) {}
-    return 'http://localhost:8080';
+    return 'http://localhost:3000';
   }
 }
 

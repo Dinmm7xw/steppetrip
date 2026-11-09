@@ -7,6 +7,7 @@ import '../models/user_model.dart';
 import 'database_helper.dart';
 import 'api_service.dart';
 import 'mock_data_service.dart';
+import 'supabase_config.dart';
 
 /// Практикалық жұмыс №5: Repository Pattern & Offline-First REST API Sync
 class TourRepository extends ChangeNotifier {
@@ -103,6 +104,21 @@ class TourRepository extends ChangeNotifier {
     notifyListeners();
 
     try {
+      final isSimulatingError = _apiService.forceSimulateNetworkError ||
+          _apiService.forceSimulateTimeout ||
+          _apiService.forceSimulateServerError;
+
+      if (SupabaseConfig.isConfigured && !isSimulatingError) {
+        final supaTours = await SupabaseConfig.selectAll('tours');
+        if (supaTours.isNotEmpty) {
+          _isOfflineMode = false;
+          _lastSyncTime = DateTime.now();
+          _successMessage = 'Supabase Cloud базасымен синхрондалды (HTTP 200 OK)';
+          await refreshAllData();
+          return true;
+        }
+      }
+
       // 5. GET /tours
       final remoteTours = await _apiService.getTours();
       // 18. Сервер деректерін жергілікті SQLite базасына сақтау

@@ -321,7 +321,7 @@ class _HomeScreenState extends State<HomeScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  isOffline ? 'Офлайн режим (SQLite кэш)' : 'REST API Онлайн (HTTP 200 OK)',
+                  isOffline ? 'Офлайн режим (SQLite кэш)' : 'Supabase Cloud Онлайн (PostgreSQL)',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 12,
@@ -331,7 +331,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 Text(
                   isOffline
                       ? 'Интернет жоқ. Локалды деректер қорынан көрсетілуде'
-                      : 'Серверлік деректермен толық байланыс орнатылған',
+                      : 'tbuezeoqfcwyshxtnxiz.supabase.co базасымен тікелей байланыс',
                   style: TextStyle(
                     fontSize: 11,
                     color: isOffline ? const Color(0xFFBF360C) : const Color(0xFF1B5E20),
