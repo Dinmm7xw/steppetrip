@@ -52,21 +52,26 @@ class DatabaseHelper {
     try {
       final rawTours = AppStorage.getItem('stp_db_tours');
       if (rawTours != null && rawTours.isNotEmpty) {
-        final List list = jsonDecode(rawTours) as List;
-        if (list.isNotEmpty) {
+        final decoded = jsonDecode(rawTours);
+        if (decoded is List && decoded.isNotEmpty) {
           _webTours.clear();
-          for (var item in list) {
-            _webTours.add(TourPlace.fromMap(Map<String, dynamic>.from(item as Map)));
+          for (var item in decoded) {
+            if (item is Map) {
+              _webTours.add(TourPlace.fromMap(Map<String, dynamic>.from(item)));
+            }
           }
         }
       }
       final rawBookings = AppStorage.getItem('stp_db_bookings');
       if (rawBookings != null && rawBookings.isNotEmpty) {
-        final List list = jsonDecode(rawBookings) as List;
-        if (list.isNotEmpty) {
+        final decoded = jsonDecode(rawBookings);
+        if (decoded is List && decoded.isNotEmpty) {
           _webBookings.clear();
-          for (var item in list) {
-            _webBookings.add(BookingModel.fromMap(Map<String, dynamic>.from(item as Map)));
+          for (var item in decoded) {
+            if (item is Map) {
+              _webBookings
+                  .add(BookingModel.fromMap(Map<String, dynamic>.from(item)));
+            }
           }
         }
       }
@@ -308,16 +313,7 @@ class DatabaseHelper {
         await SupabaseConfig.upsert('tours', tour.toMap());
       } catch (_) {}
     }
-    if (kIsWeb) {
-      try {
-        http.post(
-          Uri.parse('${AppStorage.getApiBaseUrl()}/api/tours'),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode(tour.toMap()),
-        );
-      } catch (_) {}
-      return 1;
-    }
+    if (kIsWeb) return 1;
     try {
       final db = await database;
       return await db.insert('tours', tour.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
@@ -386,16 +382,7 @@ class DatabaseHelper {
         await SupabaseConfig.upsert('tours', tour.toMap());
       } catch (_) {}
     }
-    if (kIsWeb) {
-      try {
-        http.post(
-          Uri.parse('${AppStorage.getApiBaseUrl()}/api/tours'),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode(tour.toMap()),
-        );
-      } catch (_) {}
-      return 1;
-    }
+    if (kIsWeb) return 1;
     try {
       final db = await database;
       return await db.update('tours', tour.toMap(), where: 'id = ?', whereArgs: [tour.id]);
@@ -412,12 +399,7 @@ class DatabaseHelper {
         await SupabaseConfig.deleteByColumn('tours', 'id', id);
       } catch (_) {}
     }
-    if (kIsWeb) {
-      try {
-        http.delete(Uri.parse('${AppStorage.getApiBaseUrl()}/api/tours?id=${Uri.encodeComponent(id)}'));
-      } catch (_) {}
-      return 1;
-    }
+    if (kIsWeb) return 1;
     try {
       final db = await database;
       return await db.delete('tours', where: 'id = ?', whereArgs: [id]);
@@ -474,16 +456,7 @@ class DatabaseHelper {
         await SupabaseConfig.upsert('bookings', booking.toMap());
       } catch (_) {}
     }
-    if (kIsWeb) {
-      try {
-        http.post(
-          Uri.parse('${AppStorage.getApiBaseUrl()}/api/bookings'),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode(booking.toMap()),
-        );
-      } catch (_) {}
-      return 1;
-    }
+    if (kIsWeb) return 1;
     try {
       final db = await database;
       return await db.insert('bookings', booking.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
@@ -528,16 +501,7 @@ class DatabaseHelper {
         await SupabaseConfig.upsert('bookings', booking.toMap());
       } catch (_) {}
     }
-    if (kIsWeb) {
-      try {
-        http.post(
-          Uri.parse('${AppStorage.getApiBaseUrl()}/api/bookings'),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode(booking.toMap()),
-        );
-      } catch (_) {}
-      return 1;
-    }
+    if (kIsWeb) return 1;
     try {
       final db = await database;
       return await db.update('bookings', booking.toMap(), where: 'id = ?', whereArgs: [booking.id]);
@@ -554,12 +518,7 @@ class DatabaseHelper {
         await SupabaseConfig.deleteByColumn('bookings', 'id', id);
       } catch (_) {}
     }
-    if (kIsWeb) {
-      try {
-        http.delete(Uri.parse('${AppStorage.getApiBaseUrl()}/api/bookings?id=${Uri.encodeComponent(id)}'));
-      } catch (_) {}
-      return 1;
-    }
+    if (kIsWeb) return 1;
     try {
       final db = await database;
       return await db.delete('bookings', where: 'id = ?', whereArgs: [id]);

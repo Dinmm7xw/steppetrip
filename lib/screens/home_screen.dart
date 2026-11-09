@@ -496,27 +496,27 @@ class _HomeScreenState extends State<HomeScreen> {
                                 );
                               },
                             ),
-                            const SizedBox(width: 4),
+                            const SizedBox(width: 2),
                           ],
                           IconButton(
                             visualDensity: VisualDensity.compact,
-                            padding: const EdgeInsets.all(4),
+                            padding: const EdgeInsets.all(3),
                             constraints: const BoxConstraints(),
                             tooltip: 'Live Чат (Realtime гид)',
-                            icon: const Icon(Icons.forum_outlined, color: AppColors.primary, size: 24),
+                            icon: const Icon(Icons.forum_outlined, color: AppColors.primary, size: 22),
                             onPressed: () {
                               Navigator.pushNamed(context, '/chat');
                             },
                           ),
-                          const SizedBox(width: 4),
+                          const SizedBox(width: 2),
                           if (((AuthService.instance.currentUser ?? _repo.currentUser)?.isGuide ?? false) ||
                               ((AuthService.instance.currentUser ?? _repo.currentUser)?.isAdmin ?? false))
                             IconButton(
                               visualDensity: VisualDensity.compact,
-                              padding: const EdgeInsets.all(4),
+                              padding: const EdgeInsets.all(3),
                               constraints: const BoxConstraints(),
                               tooltip: 'Билеттерді тексеру (Гид/Админ Сканері)',
-                              icon: const Icon(Icons.qr_code_scanner, color: AppColors.primary, size: 24),
+                              icon: const Icon(Icons.qr_code_scanner, color: AppColors.primary, size: 22),
                               onPressed: () {
                                 final active = (AuthService.instance.currentUser ?? _repo.currentUser);
                                 if (active?.isGuide == true && active?.isApproved == false) {
@@ -537,10 +537,10 @@ class _HomeScreenState extends State<HomeScreen> {
                           else
                             IconButton(
                               visualDensity: VisualDensity.compact,
-                              padding: const EdgeInsets.all(4),
+                              padding: const EdgeInsets.all(3),
                               constraints: const BoxConstraints(),
                               tooltip: 'Менің QR Билетім',
-                              icon: const Icon(Icons.qr_code_2_rounded, color: AppColors.accentGold, size: 26),
+                              icon: const Icon(Icons.qr_code_2_rounded, color: AppColors.accentGold, size: 24),
                               onPressed: () {
                                 final booking = _repo.bookings.isNotEmpty ? _repo.bookings.first : MockDataService.mockBookings.first;
                                 showDialog(
@@ -553,15 +553,15 @@ class _HomeScreenState extends State<HomeScreen> {
                                 );
                               },
                             ),
-                          const SizedBox(width: 4),
+                          const SizedBox(width: 2),
                           IconButton(
                             visualDensity: VisualDensity.compact,
-                            padding: const EdgeInsets.all(4),
+                            padding: const EdgeInsets.all(3),
                             constraints: const BoxConstraints(),
                             icon: Stack(
                               clipBehavior: Clip.none,
                               children: [
-                                const Icon(Icons.notifications_outlined, color: AppColors.textPrimary, size: 24),
+                                const Icon(Icons.notifications_outlined, color: AppColors.textPrimary, size: 22),
                                 if (NotificationService.instance.unreadCount > 0)
                                   Positioned(
                                     right: -2,
@@ -595,9 +595,9 @@ class _HomeScreenState extends State<HomeScreen> {
                               setState(() => _currentTabIndex = 4);
                             },
                             child: CircleAvatar(
-                              radius: 22,
+                              radius: 18,
                               backgroundColor: AppColors.primaryLight.withOpacity(0.2),
-                              child: const Icon(Icons.person, color: AppColors.primary),
+                              child: const Icon(Icons.person, color: AppColors.primary, size: 20),
                             ),
                           ),
                         ],

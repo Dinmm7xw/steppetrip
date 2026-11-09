@@ -105,12 +105,23 @@ class TourPlace {
           final decoded = jsonDecode(map['highlights'] as String);
           if (decoded is List) {
             parsedHighlights = List<String>.from(decoded.map((e) => e.toString()));
+          } else {
+            parsedHighlights = (map['highlights'] as String)
+                .split(RegExp(r'[|,]'))
+                .map((e) => e.trim())
+                .where((e) => e.isNotEmpty)
+                .toList();
           }
         } catch (_) {
-          parsedHighlights = (map['highlights'] as String).split(',').map((e) => e.trim()).toList();
+          parsedHighlights = (map['highlights'] as String)
+              .split(RegExp(r'[|,]'))
+              .map((e) => e.trim())
+              .where((e) => e.isNotEmpty)
+              .toList();
         }
-      } else if (map['highlights'] is List) {
-        parsedHighlights = List<String>.from((map['highlights'] as List).map((e) => e.toString()));
+      } else if (map['highlights'] is Iterable) {
+        parsedHighlights =
+            List<String>.from((map['highlights'] as Iterable).map((e) => e.toString()));
       }
     }
 

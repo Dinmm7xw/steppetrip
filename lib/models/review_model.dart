@@ -81,12 +81,23 @@ class ReviewModel {
           final decoded = jsonDecode(map['tags'] as String);
           if (decoded is List) {
             parsedTags = List<String>.from(decoded.map((e) => e.toString()));
+          } else {
+            parsedTags = (map['tags'] as String)
+                .split(RegExp(r'[|,]'))
+                .map((e) => e.trim())
+                .where((e) => e.isNotEmpty)
+                .toList();
           }
         } catch (_) {
-          parsedTags = (map['tags'] as String).split(',').map((e) => e.trim()).toList();
+          parsedTags = (map['tags'] as String)
+              .split(RegExp(r'[|,]'))
+              .map((e) => e.trim())
+              .where((e) => e.isNotEmpty)
+              .toList();
         }
-      } else if (map['tags'] is List) {
-        parsedTags = List<String>.from((map['tags'] as List).map((e) => e.toString()));
+      } else if (map['tags'] is Iterable) {
+        parsedTags =
+            List<String>.from((map['tags'] as Iterable).map((e) => e.toString()));
       }
     }
 

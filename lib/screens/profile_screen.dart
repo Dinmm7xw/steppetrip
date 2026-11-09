@@ -401,8 +401,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: AppColors.border),
               ),
-              child: Column(
-                children: [
+              child: Material(
+                color: Colors.transparent,
+                child: Column(
+                  children: [
                   ListTile(
                     leading: const Icon(Icons.language, color: AppColors.primary),
                     title: const Text('Қосымша тілі', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
@@ -484,6 +486,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ],
               ),
             ),
+          ),
             const SizedBox(height: 20),
 
             // Logout button

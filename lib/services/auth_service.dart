@@ -78,13 +78,16 @@ class AuthService extends ChangeNotifier {
 
   Future<void> syncUsersFromDatabase() async {
     bool changed = false;
-    // 0. Supabase Cloud базасынан оқу (егер қосылған болса)
+    final Set<String> remoteEmails = {};
+
+    // 0. Supabase Cloud базасынан оқу және локалды тіркелгендерді бұлтқа жүктеу
     if (SupabaseConfig.isConfigured) {
       try {
         final rows = await SupabaseConfig.selectAll('users');
         for (var row in rows) {
           final u = UserModel.fromMap(row);
           final key = u.email.toLowerCase();
+          remoteEmails.add(key);
           _usersByEmail[key] = u;
           final pwd = row['password']?.toString();
           if (pwd != null && pwd.isNotEmpty) {
@@ -99,7 +102,20 @@ class AuthService extends ChangeNotifier {
           }
           changed = true;
         }
-      } catch (_) {}
+
+        // Локалды жадта бар, бірақ Supabase-ке әлі түспеген пайдаланушыларды жіберу
+        for (final entry in List<MapEntry<String, UserModel>>.from(
+            _usersByEmail.entries)) {
+          if (!remoteEmails.contains(entry.key)) {
+            await _pushUserToDatabase(
+              entry.value,
+              password: _userPasswords[entry.key] ?? '123456',
+            );
+          }
+        }
+      } catch (e) {
+        debugPrint('syncUsersFromDatabase error: $e');
+      }
     }
 
     // 1. Локалды SQLite базасынан оқу (Desktop/Mobile)
@@ -119,34 +135,6 @@ class AuthService extends ChangeNotifier {
         }
       } catch (_) {}
     }
-
-    // 2. Орталық SQLite HTTP серверінен оқу (Web + Телефон + Компьютер синхрондауы)
-    try {
-      final baseUrl = AppStorage.getApiBaseUrl();
-      final res = await http
-          .get(Uri.parse('$baseUrl/api/state'))
-          .timeout(const Duration(milliseconds: 1500));
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body) as Map<String, dynamic>;
-        final List usersList = (data['users'] as List?) ?? [];
-        final Map passMap = (data['passwords'] as Map?) ?? {};
-        passMap.forEach((k, v) {
-          _userPasswords[k.toString().toLowerCase()] = v.toString();
-        });
-        for (var item in usersList) {
-          final u = UserModel.fromMap(Map<String, dynamic>.from(item as Map));
-          final key = u.email.toLowerCase();
-          _usersByEmail[key] = u;
-          _userPasswords.putIfAbsent(key, () => '123456');
-          if (u.isGuide && !u.isApproved) {
-            NotificationService.instance.addGuideApplication(u);
-          } else if (u.isGuide && u.isApproved) {
-            NotificationService.instance.markGuideAsApproved(key);
-          }
-          changed = true;
-        }
-      }
-    } catch (_) {}
 
     if (changed) {
       _saveToStorage();
@@ -168,7 +156,9 @@ class AuthService extends ChangeNotifier {
         row['password'] =
             password ?? _userPasswords[user.email.toLowerCase()] ?? '123456';
         await SupabaseConfig.upsert('users', row);
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('_pushUserToDatabase error: $e');
+      }
     }
     if (!kIsWeb) {
       try {
@@ -177,19 +167,6 @@ class AuthService extends ChangeNotifier {
             conflictAlgorithm: ConflictAlgorithm.replace);
       } catch (_) {}
     }
-    try {
-      final baseUrl = AppStorage.getApiBaseUrl();
-      await http
-          .post(
-            Uri.parse('$baseUrl/api/users'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'user': user.toMap(),
-              if (password != null) 'password': password,
-            }),
-          )
-          .timeout(const Duration(milliseconds: 1500));
-    } catch (_) {}
   }
 
   Future<void> _deleteUserFromDatabase(String email) async {
@@ -204,32 +181,31 @@ class AuthService extends ChangeNotifier {
         await db.delete('users', where: 'LOWER(email) = ?', whereArgs: [email]);
       } catch (_) {}
     }
-    try {
-      final baseUrl = AppStorage.getApiBaseUrl();
-      await http
-          .delete(Uri.parse('$baseUrl/api/users?email=${Uri.encodeComponent(email)}'))
-          .timeout(const Duration(milliseconds: 1500));
-    } catch (_) {}
   }
 
   void _loadFromStorage() {
     try {
       final rawUsers = AppStorage.getItem('stp_users');
       if (rawUsers != null && rawUsers.isNotEmpty) {
-        final List list = jsonDecode(rawUsers) as List;
-        for (var item in list) {
-          final u = UserModel.fromMap(Map<String, dynamic>.from(item as Map));
-          _usersByEmail[u.email.toLowerCase()] = u;
-          // Егер гид күтуде болса — хабарлама сервисіне қосу
-          if (u.isGuide && !u.isApproved) {
-            NotificationService.instance.addGuideApplication(u);
+        final decoded = jsonDecode(rawUsers);
+        if (decoded is List) {
+          for (var item in decoded) {
+            if (item is Map) {
+              final u = UserModel.fromMap(Map<String, dynamic>.from(item));
+              _usersByEmail[u.email.toLowerCase()] = u;
+              if (u.isGuide && !u.isApproved) {
+                NotificationService.instance.addGuideApplication(u);
+              }
+            }
           }
         }
       }
       final rawPass = AppStorage.getItem('stp_passwords');
       if (rawPass != null && rawPass.isNotEmpty) {
-        final Map map = jsonDecode(rawPass) as Map;
-        map.forEach((k, v) => _userPasswords[k.toString()] = v.toString());
+        final decoded = jsonDecode(rawPass);
+        if (decoded is Map) {
+          decoded.forEach((k, v) => _userPasswords[k.toString()] = v.toString());
+        }
       }
     } catch (_) {}
   }
@@ -278,9 +254,17 @@ class AuthService extends ChangeNotifier {
   void toggleRole() {
     if (_currentUser == null) return;
     final newRole = _currentUser!.isGuide ? 'tourist' : 'guide';
-    final updated = _currentUser!.copyWith(role: newRole);
+    final updated = _currentUser!.copyWith(
+      role: newRole,
+      isApproved: newRole == 'guide' ? false : true,
+    );
     _currentUser = updated;
     _usersByEmail[updated.email.toLowerCase()] = updated;
+    if (updated.isGuide && !updated.isApproved) {
+      NotificationService.instance.addGuideApplication(updated);
+    }
+    _saveToStorage();
+    _pushUserToDatabase(updated);
     TourRepository.instance.setCurrentUser(updated);
     notifyListeners();
   }
@@ -475,8 +459,9 @@ class AuthService extends ChangeNotifier {
 
     final cleanEmail = email.trim().toLowerCase();
 
-    // Email бұрыннан бар ма тексеру
-    if (_userPasswords.containsKey(cleanEmail)) {
+    // Әкімші поштасы бұрыннан бар болса қате қайтару
+    if (cleanEmail == 'dinmuhammed@steppetrip.kz' ||
+        cleanEmail == 'dinmuhammed@admin.kz') {
       _status = AuthStatus.error;
       _errorMessage = 'Бұл электронды поштамен аккаунт бұрыннан тіркелген!';
       notifyListeners();
@@ -486,9 +471,10 @@ class AuthService extends ChangeNotifier {
     try {
       final isGuide = role == 'guide';
       final isApproved = !isGuide; // Гид болса — әкімші мақұлдауын күтеді
+      final existingId = _usersByEmail[cleanEmail]?.id;
 
       final newUser = UserModel(
-        id: 'usr_${DateTime.now().millisecondsSinceEpoch}',
+        id: existingId ?? 'usr_${DateTime.now().millisecondsSinceEpoch}',
         fullName: fullName.trim(),
         email: cleanEmail,
         phone: phone.trim(),

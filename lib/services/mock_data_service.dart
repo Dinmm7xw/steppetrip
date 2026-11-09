@@ -4,13 +4,13 @@ import '../models/booking_model.dart';
 
 class MockDataService {
   static const UserModel adminUser = UserModel(
-    id: 'admin_01',
+    id: 'usr_admin_01',
     fullName: 'Дінмұхаммед Бақытұлы',
     email: 'dinmuhammed@steppetrip.kz',
-    phone: '+7 (777) 999-88-77',
+    phone: '+7 (708) 555-44-33',
     avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=300&q=80',
     preferredLanguage: 'Қазақша',
-    completedTours: 24,
+    completedTours: 25,
     role: 'admin',
     isApproved: true,
   );
