@@ -6,6 +6,7 @@ class UserModel {
   final String avatarUrl;
   final String preferredLanguage;
   final int completedTours;
+  final String role; // 'tourist' | 'guide'
 
   const UserModel({
     required this.id,
@@ -15,7 +16,10 @@ class UserModel {
     required this.avatarUrl,
     this.preferredLanguage = 'Қазақша',
     this.completedTours = 0,
+    this.role = 'tourist',
   });
+
+  bool get isGuide => role == 'guide';
 
   UserModel copyWith({
     String? id,
@@ -25,6 +29,7 @@ class UserModel {
     String? avatarUrl,
     String? preferredLanguage,
     int? completedTours,
+    String? role,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -34,6 +39,7 @@ class UserModel {
       avatarUrl: avatarUrl ?? this.avatarUrl,
       preferredLanguage: preferredLanguage ?? this.preferredLanguage,
       completedTours: completedTours ?? this.completedTours,
+      role: role ?? this.role,
     );
   }
 
@@ -46,6 +52,7 @@ class UserModel {
       'avatarUrl': avatarUrl,
       'preferredLanguage': preferredLanguage,
       'completedTours': completedTours,
+      'role': role,
     };
   }
 
@@ -58,6 +65,16 @@ class UserModel {
   factory UserModel.fromMap(Map<String, dynamic> map) {
     return UserModel(
       id: map['id'] as String,
+      fullName: map['fullName'] as String,
+      email: map['email'] as String,
+      phone: map['phone'] as String,
+      avatarUrl: map['avatarUrl'] as String? ?? '',
+      preferredLanguage: map['preferredLanguage'] as String? ?? 'Қазақша',
+      completedTours: map['completedTours'] as int? ?? 0,
+      role: map['role'] as String? ?? 'tourist',
+    );
+  }
+}
       fullName: map['fullName'] as String,
       email: map['email'] as String,
       phone: map['phone'] as String,

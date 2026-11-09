@@ -177,9 +177,9 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                           label: Text(
-                            u.fullName.split(' ').first,
+                            '${u.fullName.split(' ').first} (${u.isGuide ? 'Гид 🏅' : 'Турист 🎒'})',
                             style: TextStyle(
-                              fontSize: 12,
+                              fontSize: 11,
                               fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                               color: isSelected ? AppColors.primary : AppColors.textPrimary,
                             ),

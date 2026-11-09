@@ -78,6 +78,7 @@ class AuthService extends ChangeNotifier {
     'dinmuhammed@steppetrip.kz': '123456',
     'aruzhan.sagitova@gmail.com': '123456',
     'dimash.kudaibergen@gmail.com': '123456',
+    'guide.bauyrzhan@steppetrip.kz': '123456',
     'aidos.murat@gmail.com': '123456',
     'test@example.com': '123456',
   };
@@ -93,6 +94,16 @@ class AuthService extends ChangeNotifier {
   String? get savedEmail => _savedEmail;
   String? get savedPassword => _savedPassword;
   List<UserModel> get availableDemoUsers => _usersByEmail.values.toList();
+
+  void toggleRole() {
+    if (_currentUser == null) return;
+    final newRole = _currentUser!.isGuide ? 'tourist' : 'guide';
+    final updated = _currentUser!.copyWith(role: newRole);
+    _currentUser = updated;
+    _usersByEmail[updated.email.toLowerCase()] = updated;
+    TourRepository.instance.setCurrentUser(updated);
+    notifyListeners();
+  }
 
   void clearMessages() {
     _errorMessage = null;

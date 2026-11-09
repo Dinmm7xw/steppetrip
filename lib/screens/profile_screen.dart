@@ -252,7 +252,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       color: AppColors.textSecondary,
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: user.isGuide ? AppColors.accentGold.withOpacity(0.15) : AppColors.primary.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(user.isGuide ? Icons.verified : Icons.hiking, size: 16, color: user.isGuide ? AppColors.accentGold : AppColors.primary),
+                        const SizedBox(width: 6),
+                        Text(
+                          user.isGuide ? 'Кәсіби Гид / Тексеруші' : 'Саяхатшы / Турист',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                            color: user.isGuide ? const Color(0xFFB78103) : AppColors.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  TextButton.icon(
+                    style: TextButton.styleFrom(visualDensity: VisualDensity.compact, padding: EdgeInsets.zero),
+                    icon: const Icon(Icons.swap_horiz, size: 16, color: AppColors.primary),
+                    label: Text(
+                      user.isGuide ? 'Саяхатшы режиміне ауысу' : 'Гид (Тексеруші) режиміне ауысу',
+                      style: const TextStyle(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.bold),
+                    ),
+                    onPressed: () {
+                      AuthService.instance.toggleRole();
+                      setState(() {});
+                    },
+                  ),
+                  const SizedBox(height: 16),
                   const Divider(height: 1),
                   const SizedBox(height: 16),
 

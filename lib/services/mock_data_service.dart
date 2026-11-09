@@ -44,12 +44,13 @@ class MockDataService {
     ),
     const UserModel(
       id: 'user_05',
-      fullName: 'Айдос Мұратов',
-      email: 'aidos.murat@gmail.com',
-      phone: '+7 (775) 333-22-11',
+      fullName: 'Бауыржан Серікұлы (Гид)',
+      email: 'guide.bauyrzhan@steppetrip.kz',
+      phone: '+7 (777) 222-33-44',
       avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=300&q=80',
       preferredLanguage: 'Қазақша',
-      completedTours: 5,
+      completedTours: 142,
+      role: 'guide',
     ),
   ];
 

@@ -414,12 +414,36 @@ class _HomeScreenState extends State<HomeScreen> {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            'Қайырлы күн, ${(AuthService.instance.currentUser ?? _repo.currentUser)?.fullName.split(' ').first ?? 'Саяхатшы'}! 👋',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: AppColors.textSecondary,
-                            ),
+                          Row(
+                            children: [
+                              Text(
+                                'Қайырлы күн, ${(AuthService.instance.currentUser ?? _repo.currentUser)?.fullName.split(' ').first ?? 'Саяхатшы'}! 👋',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: ((AuthService.instance.currentUser ?? _repo.currentUser)?.isGuide ?? false)
+                                      ? AppColors.accentGold.withOpacity(0.18)
+                                      : AppColors.primary.withOpacity(0.12),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  ((AuthService.instance.currentUser ?? _repo.currentUser)?.isGuide ?? false) ? 'ГИД 🏅' : 'ТУРИСТ 🎒',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: ((AuthService.instance.currentUser ?? _repo.currentUser)?.isGuide ?? false)
+                                        ? const Color(0xFFB78103)
+                                        : AppColors.primary,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 4),
                           const Text(
@@ -441,16 +465,33 @@ class _HomeScreenState extends State<HomeScreen> {
                               Navigator.pushNamed(context, '/chat');
                             },
                           ),
-                          IconButton(
-                            tooltip: 'Билетті тексеру (QR Сканер)',
-                            icon: const Icon(Icons.qr_code_scanner, color: AppColors.primary, size: 26),
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (context) => const QRScannerScreen()),
-                              );
-                            },
-                          ),
+                          if ((AuthService.instance.currentUser ?? _repo.currentUser)?.isGuide ?? false)
+                            IconButton(
+                              tooltip: 'Билеттерді тексеру (Гид Сканері)',
+                              icon: const Icon(Icons.qr_code_scanner, color: AppColors.primary, size: 26),
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (context) => const QRScannerScreen()),
+                                );
+                              },
+                            )
+                          else
+                            IconButton(
+                              tooltip: 'Менің QR Билетім',
+                              icon: const Icon(Icons.qr_code_2_rounded, color: AppColors.accentGold, size: 28),
+                              onPressed: () {
+                                final booking = _repo.bookings.isNotEmpty ? _repo.bookings.first : MockDataService.mockBookings.first;
+                                showDialog(
+                                  context: context,
+                                  builder: (ctx) => Dialog(
+                                    backgroundColor: Colors.transparent,
+                                    insetPadding: const EdgeInsets.all(20),
+                                    child: QrTicketWidget(booking: booking),
+                                  ),
+                                );
+                              },
+                            ),
                           IconButton(
                             icon: Stack(
                               children: [
