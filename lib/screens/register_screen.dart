@@ -23,6 +23,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
+  String _selectedRole = 'tourist'; // 'tourist' or 'guide'
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _agreedToTerms = true;
@@ -62,6 +63,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       email: _emailController.text,
       phone: _phoneController.text,
       password: _passwordController.text,
+      role: _selectedRole,
     );
 
     if (!mounted) return;
@@ -129,7 +131,92 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     color: AppColors.textSecondary,
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 20),
+
+                // Рөлді таңдау: Саяхатшы немесе Гид
+                const Text('Қосымшадағы рөліңізді таңдаңыз *', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: InkWell(
+                        onTap: () => setState(() => _selectedRole = 'tourist'),
+                        borderRadius: BorderRadius.circular(14),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                          decoration: BoxDecoration(
+                            color: _selectedRole == 'tourist' ? AppColors.primaryLight.withOpacity(0.18) : AppColors.background,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: _selectedRole == 'tourist' ? AppColors.primary : AppColors.border,
+                              width: _selectedRole == 'tourist' ? 2 : 1,
+                            ),
+                          ),
+                          child: Column(
+                            children: const [
+                              Icon(Icons.hiking, color: AppColors.primary, size: 26),
+                              SizedBox(height: 4),
+                              Text('Саяхатшы 🎒', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                              SizedBox(height: 2),
+                              Text('Тур көру, брондау', style: TextStyle(fontSize: 10, color: AppColors.textSecondary), textAlign: TextAlign.center),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: InkWell(
+                        onTap: () => setState(() => _selectedRole = 'guide'),
+                        borderRadius: BorderRadius.circular(14),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                          decoration: BoxDecoration(
+                            color: _selectedRole == 'guide' ? AppColors.accentGold.withOpacity(0.18) : AppColors.background,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: _selectedRole == 'guide' ? AppColors.accentGold : AppColors.border,
+                              width: _selectedRole == 'guide' ? 2 : 1,
+                            ),
+                          ),
+                          child: Column(
+                            children: const [
+                              Icon(Icons.verified, color: AppColors.accentGold, size: 26),
+                              SizedBox(height: 4),
+                              Text('Тур Гиді 🏅', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                              SizedBox(height: 2),
+                              Text('Билеттерді тексеру', style: TextStyle(fontSize: 10, color: AppColors.textSecondary), textAlign: TextAlign.center),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (_selectedRole == 'guide') ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF8E1),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFFFE082)),
+                    ),
+                    child: Row(
+                      children: const [
+                        Icon(Icons.lock_clock, color: Color(0xFFF57F17), size: 18),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Ескерту: Гид мәртебесі админ тексеруінен кейін ғана мақұлданады.',
+                            style: TextStyle(fontSize: 11, color: Color(0xFFE65100), fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 18),
 
                 // 2. Name validation
                 const Text('Толық аты-жөніңіз *', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),

@@ -4,6 +4,7 @@ import '../models/user_model.dart';
 import 'database_helper.dart';
 import 'mock_data_service.dart';
 import 'tour_repository.dart';
+import 'notification_service.dart';
 
 /// Модель сессии пользователя
 class UserSession {
@@ -56,36 +57,43 @@ class AuthService extends ChangeNotifier {
   static final AuthService instance = AuthService._internal();
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
 
-  AuthService._internal();
+  AuthService._internal() {
+    // Әдепкі сессия: Дінмұхаммед (Әкімші)
+    _currentUser = MockDataService.currentUser;
+    _status = AuthStatus.authenticated;
+    _currentSession = UserSession(
+      token: 'STP_SESSION_admin_01',
+      userId: MockDataService.currentUser.id,
+      email: MockDataService.currentUser.email,
+      loggedInAt: DateTime.now(),
+      rememberMe: true,
+    );
+  }
 
-  AuthStatus _status = AuthStatus.unauthenticated;
-  UserModel? _currentUser;
+  AuthStatus _status = AuthStatus.authenticated;
+  UserModel? _currentUser = MockDataService.currentUser;
   UserSession? _currentSession;
   String? _errorMessage;
   String? _successMessage;
 
-  String? _savedEmail = 'alisher.erbol@gmail.com';
+  String? _savedEmail = 'dinmuhammed@steppetrip.kz';
   String? _savedPassword = '123456';
 
-  // Демо пайдаланушылар тізімі (email -> UserModel)
+  // Жүйедегі пайдаланушылар тізімі (email -> UserModel)
   final Map<String, UserModel> _usersByEmail = {
     for (var u in MockDataService.demoUsers) u.email.toLowerCase(): u,
   };
 
-  // Демо парольдер базасы (email -> password)
+  // Құпиясөздер базасы (email -> password)
   final Map<String, String> _userPasswords = {
-    'alisher.erbol@gmail.com': '123456',
     'dinmuhammed@steppetrip.kz': '123456',
-    'aruzhan.sagitova@gmail.com': '123456',
-    'dimash.kudaibergen@gmail.com': '123456',
-    'guide.bauyrzhan@steppetrip.kz': '123456',
-    'aidos.murat@gmail.com': '123456',
-    'test@example.com': '123456',
+    'dinmuhammed@admin.kz': '123456',
   };
 
   // Getters
   AuthStatus get status => _status;
-  bool get isAuthenticated => _status == AuthStatus.authenticated && _currentUser != null;
+  bool get isAuthenticated =>
+      _status == AuthStatus.authenticated && _currentUser != null;
   bool get isAuthenticating => _status == AuthStatus.authenticating;
   UserModel? get currentUser => _currentUser;
   UserSession? get currentSession => _currentSession;
@@ -219,7 +227,8 @@ class AuthService extends ChangeNotifier {
       if (user == null && !kIsWeb) {
         try {
           final db = await _dbHelper.database;
-          final users = await db.query('users', where: 'LOWER(email) = ?', whereArgs: [cleanEmail]);
+          final users = await db.query('users',
+              where: 'LOWER(email) = ?', whereArgs: [cleanEmail]);
           if (users.isNotEmpty) {
             user = UserModel.fromMap(users.first);
           }
@@ -232,14 +241,16 @@ class AuthService extends ChangeNotifier {
           fullName: cleanEmail.split('@').first,
           email: cleanEmail,
           phone: '+7 (777) 000-00-00',
-          avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde',
+          avatarUrl:
+              'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde',
           completedTours: 1,
         );
       }
 
       _usersByEmail[cleanEmail] = user;
 
-      final token = 'STP_SESSION_${user.id}_${DateTime.now().millisecondsSinceEpoch}';
+      final token =
+          'STP_SESSION_${user.id}_${DateTime.now().millisecondsSinceEpoch}';
       _currentSession = UserSession(
         token: token,
         userId: user.id,
@@ -278,6 +289,7 @@ class AuthService extends ChangeNotifier {
     required String email,
     required String phone,
     required String password,
+    String role = 'tourist',
   }) async {
     _status = AuthStatus.authenticating;
     _errorMessage = null;
@@ -297,13 +309,19 @@ class AuthService extends ChangeNotifier {
     }
 
     try {
+      final isGuide = role == 'guide';
+      final isApproved = !isGuide; // Гид болса — әкімші мақұлдауын күтеді
+
       final newUser = UserModel(
         id: 'usr_${DateTime.now().millisecondsSinceEpoch}',
         fullName: fullName.trim(),
         email: cleanEmail,
         phone: phone.trim(),
-        avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde',
+        avatarUrl:
+            'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde',
         completedTours: 0,
+        role: role,
+        isApproved: isApproved,
       );
 
       // Пароль мен пайдаланушыны сақтау
@@ -322,7 +340,8 @@ class AuthService extends ChangeNotifier {
 
       // 5. Сессияны автоматты түрде ашу
       _currentSession = UserSession(
-        token: 'STP_SESSION_${newUser.id}_${DateTime.now().millisecondsSinceEpoch}',
+        token:
+            'STP_SESSION_${newUser.id}_${DateTime.now().millisecondsSinceEpoch}',
         userId: newUser.id,
         email: newUser.email,
         loggedInAt: DateTime.now(),
@@ -331,7 +350,14 @@ class AuthService extends ChangeNotifier {
 
       _currentUser = newUser;
       _status = AuthStatus.authenticated;
-      _successMessage = 'Тіркелу сәтті аяқталды! Қош келдіңіз.';
+      _successMessage = isGuide
+          ? 'Гид ретінде өтініш қабылданды (Админ мақұлдауы күтілуде)!'
+          : 'Тіркелу сәтті аяқталды! Қош келдіңіз.';
+
+      // Гид ретінде тіркелсе — Админге хабарлама жолдау
+      if (isGuide) {
+        NotificationService.instance.addGuideApplication(newUser);
+      }
 
       // TourRepository-мен синхрондау
       TourRepository.instance.setCurrentUser(newUser);
@@ -345,6 +371,59 @@ class AuthService extends ChangeNotifier {
       return false;
     }
   }
+
+  void approveGuide(String email) {
+    final clean = email.toLowerCase();
+    final user = _usersByEmail[clean];
+    if (user != null) {
+      final updated = user.copyWith(isApproved: true);
+      _usersByEmail[clean] = updated;
+      if (_currentUser?.email.toLowerCase() == clean) {
+        _currentUser = updated;
+        TourRepository.instance.setCurrentUser(updated);
+      }
+      NotificationService.instance.markGuideAsApproved(clean);
+      notifyListeners();
+    }
+  }
+
+  void rejectGuide(String email) {
+    final clean = email.toLowerCase();
+    final user = _usersByEmail[clean];
+    if (user != null) {
+      final updated = user.copyWith(role: 'tourist', isApproved: true);
+      _usersByEmail[clean] = updated;
+      if (_currentUser?.email.toLowerCase() == clean) {
+        _currentUser = updated;
+        TourRepository.instance.setCurrentUser(updated);
+      }
+      notifyListeners();
+    }
+  }
+
+  void changeUserRole(String email, String newRole) {
+    final clean = email.toLowerCase();
+    final user = _usersByEmail[clean];
+    if (user != null) {
+      final updated = user.copyWith(role: newRole, isApproved: true);
+      _usersByEmail[clean] = updated;
+      if (_currentUser?.email.toLowerCase() == clean) {
+        _currentUser = updated;
+        TourRepository.instance.setCurrentUser(updated);
+      }
+      notifyListeners();
+    }
+  }
+
+  void deleteUser(String email) {
+    final clean = email.toLowerCase();
+    _usersByEmail.remove(clean);
+    _userPasswords.remove(clean);
+    notifyListeners();
+  }
+
+  List<UserModel> get pendingGuides =>
+      _usersByEmail.values.where((u) => u.isGuide && !u.isApproved).toList();
 
   // ==========================================================================
   // 7. Logout функциясын іске асыру
@@ -363,7 +442,8 @@ class AuthService extends ChangeNotifier {
   Future<void> updateUser(UserModel updated) async {
     _currentUser = updated;
     final db = await _dbHelper.database;
-    await db.update('users', updated.toMap(), where: 'id = ?', whereArgs: [updated.id]);
+    await db.update('users', updated.toMap(),
+        where: 'id = ?', whereArgs: [updated.id]);
     notifyListeners();
   }
 
@@ -372,8 +452,8 @@ class AuthService extends ChangeNotifier {
   void setMockSession(UserSession? session, UserModel? user) {
     _currentSession = session;
     _currentUser = user;
-    _status = session != null ? AuthStatus.authenticated : AuthStatus.unauthenticated;
+    _status =
+        session != null ? AuthStatus.authenticated : AuthStatus.unauthenticated;
     notifyListeners();
   }
 }
-

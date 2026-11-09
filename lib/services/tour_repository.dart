@@ -23,11 +23,11 @@ class TourRepository extends ChangeNotifier {
 
   ApiService get apiService => _apiService;
 
-  List<TourPlace> _tours = [];
-  List<TourPlace> _favoriteTours = [];
-  List<BookingModel> _bookings = [];
+  List<TourPlace> _tours = List.from(MockDataService.tourPlaces);
+  List<TourPlace> _favoriteTours = MockDataService.tourPlaces.where((t) => t.isFavorite).toList();
+  List<BookingModel> _bookings = List.from(MockDataService.mockBookings);
   List<CategoryModel> _categories = [];
-  UserModel? _currentUser;
+  UserModel? _currentUser = MockDataService.currentUser;
 
   // 12. Loading күйі
   bool _isLoading = false;
@@ -77,15 +77,18 @@ class TourRepository extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // 1. Жергілікті SQLite қорын іске қосу
-      await _dbHelper.database;
+      if (!kIsWeb) {
+        try {
+          await _dbHelper.database;
+        } catch (_) {}
+      }
       await refreshAllData();
 
       // 2. Сервермен (REST API) синхрондау
       await syncWithServer();
     } catch (e, stack) {
       debugPrint('Error initializing: $e\n$stack');
-      _errorMessage = 'Инициализация кезінде қате орын алды: $e';
+      await refreshAllData();
     } finally {
       _isLoading = false;
       notifyListeners();

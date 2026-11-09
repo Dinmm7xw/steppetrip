@@ -144,7 +144,7 @@ void main() {
     // ------------------------------------------------------------------------
     test('3. Дұрыс логин және құпиясөзбен кіру', () async {
       final success = await authService.login(
-        email: 'alisher.erbol@gmail.com',
+        email: 'dinmuhammed@steppetrip.kz',
         password: '123456',
         rememberMe: true,
       );
@@ -152,7 +152,7 @@ void main() {
       expect(success, isTrue);
       expect(authService.status, AuthStatus.authenticated);
       expect(authService.currentUser, isNotNull);
-      expect(authService.currentSession?.email, 'alisher.erbol@gmail.com');
+      expect(authService.currentSession?.email, 'dinmuhammed@steppetrip.kz');
     });
 
     test('4. Қате логин немесе пароль енгізілгенде хабарлама көрсету', () async {
@@ -167,7 +167,7 @@ void main() {
 
       // 2. Қате пароль
       final wrongPass = await authService.login(
-        email: 'alisher.erbol@gmail.com',
+        email: 'dinmuhammed@steppetrip.kz',
         password: 'WRONG_PASSWORD_999',
       );
       expect(wrongPass, isFalse);

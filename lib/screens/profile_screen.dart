@@ -6,6 +6,7 @@ import '../utils/theme_constants.dart';
 import 'settings_screen.dart';
 import 'help_screen.dart';
 import 'login_screen.dart';
+import 'admin_panel_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -256,38 +257,123 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                     decoration: BoxDecoration(
-                      color: user.isGuide ? AppColors.accentGold.withOpacity(0.15) : AppColors.primary.withOpacity(0.12),
+                      color: user.isAdmin
+                          ? const Color(0xFFFFF8E1)
+                          : (user.isGuide ? AppColors.accentGold.withOpacity(0.15) : AppColors.primary.withOpacity(0.12)),
                       borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: user.isAdmin
+                            ? const Color(0xFFFFB300)
+                            : (user.isGuide ? AppColors.accentGold : AppColors.primary.withOpacity(0.3)),
+                      ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(user.isGuide ? Icons.verified : Icons.hiking, size: 16, color: user.isGuide ? AppColors.accentGold : AppColors.primary),
+                        Icon(
+                          user.isAdmin ? Icons.admin_panel_settings : (user.isGuide ? Icons.verified : Icons.hiking),
+                          size: 16,
+                          color: user.isAdmin ? const Color(0xFFF57F17) : (user.isGuide ? AppColors.accentGold : AppColors.primary),
+                        ),
                         const SizedBox(width: 6),
                         Text(
-                          user.isGuide ? 'Кәсіби Гид / Тексеруші' : 'Саяхатшы / Турист',
+                          user.isAdmin ? 'Бас Әкімші (Admin) 👑' : (user.isGuide ? 'Кәсіби Гид / Тексеруші 🏅' : 'Саяхатшы / Турист 🎒'),
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 12,
-                            color: user.isGuide ? const Color(0xFFB78103) : AppColors.primary,
+                            color: user.isAdmin
+                                ? const Color(0xFFE65100)
+                                : (user.isGuide ? const Color(0xFFB78103) : AppColors.primary),
                           ),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 6),
-                  TextButton.icon(
-                    style: TextButton.styleFrom(visualDensity: VisualDensity.compact, padding: EdgeInsets.zero),
-                    icon: const Icon(Icons.swap_horiz, size: 16, color: AppColors.primary),
-                    label: Text(
-                      user.isGuide ? 'Саяхатшы режиміне ауысу' : 'Гид (Тексеруші) режиміне ауысу',
-                      style: const TextStyle(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.bold),
+                  const SizedBox(height: 10),
+
+                  // Admin Panel navigation button
+                  if (user.isAdmin) ...[
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF0F3E36),
+                        foregroundColor: AppColors.accentGold,
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 2,
+                      ),
+                      icon: const Icon(Icons.dashboard_customize_rounded, size: 18, color: AppColors.accentGold),
+                      label: const Text(
+                        'Әкімші тақтасы (Admin Panel) 👑',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                      ),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const AdminPanelScreen()),
+                        );
+                      },
                     ),
-                    onPressed: () {
-                      AuthService.instance.toggleRole();
-                      setState(() {});
-                    },
-                  ),
+                    const SizedBox(height: 10),
+                  ],
+
+                  if (user.isGuide && !user.isApproved) ...[
+                    Container(
+                      margin: const EdgeInsets.symmetric(vertical: 6),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF3E0),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFFFB74D)),
+                      ),
+                      child: Column(
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Icons.hourglass_top, color: Color(0xFFE65100), size: 18),
+                              SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  'Мәртебе: Әкімші мақұлдауын күтуде (Модерация)',
+                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Color(0xFFE65100)),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.success,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            icon: const Icon(Icons.check_circle_outline, size: 16),
+                            label: const Text('Әкімші ретінде мақұлдау (Одобрить)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                            onPressed: () {
+                              AuthService.instance.approveGuide(user.email);
+                              setState(() {});
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Гид мәртебесі әкімші тарапынан сәтті мақұлданды! ✅')),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  if (!user.isAdmin)
+                    TextButton.icon(
+                      style: TextButton.styleFrom(visualDensity: VisualDensity.compact, padding: EdgeInsets.zero),
+                      icon: const Icon(Icons.swap_horiz, size: 16, color: AppColors.primary),
+                      label: Text(
+                        user.isGuide ? 'Саяхатшы режиміне ауысу' : 'Гид (Тексеруші) режиміне ауысу',
+                        style: const TextStyle(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.bold),
+                      ),
+                      onPressed: () {
+                        AuthService.instance.toggleRole();
+                        setState(() {});
+                      },
+                    ),
                   const SizedBox(height: 16),
                   const Divider(height: 1),
                   const SizedBox(height: 16),

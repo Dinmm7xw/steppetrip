@@ -7,6 +7,7 @@ class UserModel {
   final String preferredLanguage;
   final int completedTours;
   final String role; // 'tourist' | 'guide'
+  final bool isApproved;
 
   const UserModel({
     required this.id,
@@ -17,9 +18,12 @@ class UserModel {
     this.preferredLanguage = 'Қазақша',
     this.completedTours = 0,
     this.role = 'tourist',
+    this.isApproved = true,
   });
 
+  bool get isAdmin => role == 'admin';
   bool get isGuide => role == 'guide';
+  bool get isApprovedGuide => isGuide && isApproved;
 
   UserModel copyWith({
     String? id,
@@ -30,6 +34,7 @@ class UserModel {
     String? preferredLanguage,
     int? completedTours,
     String? role,
+    bool? isApproved,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -40,6 +45,7 @@ class UserModel {
       preferredLanguage: preferredLanguage ?? this.preferredLanguage,
       completedTours: completedTours ?? this.completedTours,
       role: role ?? this.role,
+      isApproved: isApproved ?? this.isApproved,
     );
   }
 
@@ -53,6 +59,7 @@ class UserModel {
       'preferredLanguage': preferredLanguage,
       'completedTours': completedTours,
       'role': role,
+      'isApproved': isApproved ? 1 : 0,
     };
   }
 
@@ -72,15 +79,7 @@ class UserModel {
       preferredLanguage: map['preferredLanguage'] as String? ?? 'Қазақша',
       completedTours: map['completedTours'] as int? ?? 0,
       role: map['role'] as String? ?? 'tourist',
-    );
-  }
-}
-      fullName: map['fullName'] as String,
-      email: map['email'] as String,
-      phone: map['phone'] as String,
-      avatarUrl: map['avatarUrl'] as String,
-      preferredLanguage: (map['preferredLanguage'] as String?) ?? 'Қазақша',
-      completedTours: (map['completedTours'] as num?)?.toInt() ?? 0,
+      isApproved: map['isApproved'] == null ? true : (map['isApproved'] == 1 || map['isApproved'] == true),
     );
   }
 }

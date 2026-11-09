@@ -30,7 +30,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void initState() {
     super.initState();
     final saved = _authService.savedEmail;
-    _emailController.text = (saved != null && saved.isNotEmpty) ? saved : 'alisher.erbol@gmail.com';
+    _emailController.text = (saved != null && saved.isNotEmpty) ? saved : 'dinmuhammed@steppetrip.kz';
     _passwordController.text = _authService.savedPassword ?? '123456';
   }
 
@@ -154,9 +154,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Жылдам таңдау (Демо пайдаланушылар)
+                // Жылдам таңдау (Әкімші аккаунты)
                 const Text(
-                  'Жылдам таңдау (Демо пайдаланушылар):',
+                  'Жүйе әкімшісі (Admin):',
                   style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
                 ),
                 const SizedBox(height: 8),
@@ -177,7 +177,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                           label: Text(
-                            '${u.fullName.split(' ').first} (${u.isGuide ? 'Гид 🏅' : 'Турист 🎒'})',
+                            '${u.fullName.split(' ').first} (${u.isAdmin ? 'Админ 👑' : (u.isGuide ? 'Гид 🏅' : 'Турист 🎒')})',
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,

@@ -1,25 +1,7 @@
 import 'package:flutter/material.dart';
+import '../services/notification_service.dart';
+import '../services/auth_service.dart';
 import '../utils/theme_constants.dart';
-
-class NotificationItem {
-  final String id;
-  final String title;
-  final String message;
-  final String time;
-  final IconData icon;
-  final Color iconColor;
-  bool isRead;
-
-  NotificationItem({
-    required this.id,
-    required this.title,
-    required this.message,
-    required this.time,
-    required this.icon,
-    required this.iconColor,
-    this.isRead = false,
-  });
-}
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({Key? key}) : super(key: key);
@@ -29,80 +11,50 @@ class NotificationsScreen extends StatefulWidget {
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
-  final List<NotificationItem> _notifications = [
-    NotificationItem(
-      id: '1',
-      title: 'Брондау расталды! 🎉',
-      message: 'Көлсай көліне сапарыңыз бойынша BK-2026-001 нөмірлі брондау сәтті расталды.',
-      time: '1 сағат бұрын',
-      icon: Icons.check_circle_rounded,
-      iconColor: AppColors.success,
-      isRead: false,
-    ),
-    NotificationItem(
-      id: '2',
-      title: 'Арнайы жазғы жеңілдік! 🔥',
-      message: 'Бурабай және Қатонқарағай турларына осы демалыста 15% жеңілдік ұсынылады.',
-      time: 'Кеше, 18:30',
-      icon: Icons.local_offer_rounded,
-      iconColor: AppColors.accentGold,
-      isRead: false,
-    ),
-    NotificationItem(
-      id: '3',
-      title: 'Жаңа бағыт қосылды 🏔️',
-      message: 'Бозжыра шатқалына джип-тур ашылды. Бағдарламамен каталогымыздан танысыңыз.',
-      time: '3 күн бұрын',
-      icon: Icons.explore_rounded,
-      iconColor: AppColors.primary,
-      isRead: true,
-    ),
-    NotificationItem(
-      id: '4',
-      title: 'SteppeTrip-ке қош келдіңіз!',
-      message: 'Профильді толтырып, саяхаттарыңыз үшін бонустық ұпайлар жинаңыз.',
-      time: '1 апта бұрын',
-      icon: Icons.card_giftcard_rounded,
-      iconColor: AppColors.primaryLight,
-      isRead: true,
-    ),
-  ];
+  final NotificationService _service = NotificationService.instance;
+  final AuthService _auth = AuthService.instance;
 
-  void _markAllAsRead() {
-    setState(() {
-      for (var n in _notifications) {
-        n.isRead = true;
-      }
-    });
+  @override
+  void initState() {
+    super.initState();
+    _service.addListener(_onChanged);
+    _auth.addListener(_onChanged);
   }
 
-  void _clearAll() {
-    setState(() {
-      _notifications.clear();
-    });
+  @override
+  void dispose() {
+    _service.removeListener(_onChanged);
+    _auth.removeListener(_onChanged);
+    super.dispose();
+  }
+
+  void _onChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
+    final notifications = _service.notifications;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Хабарламалар'),
         actions: [
-          if (_notifications.isNotEmpty)
+          if (notifications.isNotEmpty)
             PopupMenuButton<String>(
               onSelected: (val) {
-                if (val == 'read') _markAllAsRead();
-                if (val == 'clear') _clearAll();
+                if (val == 'read') _service.markAllAsRead();
+                if (val == 'clear') _service.clearAll();
               },
-              itemBuilder: (context) => [
-                const PopupMenuItem(value: 'read', child: Text('Барлығын оқылды деп белгілеу')),
-                const PopupMenuItem(value: 'clear', child: Text('Барлығын тазарту')),
+              itemBuilder: (context) => const [
+                PopupMenuItem(value: 'read', child: Text('Барлығын оқылды деп белгілеу')),
+                PopupMenuItem(value: 'clear', child: Text('Барлығын тазарту')),
               ],
             ),
         ],
       ),
-      body: _notifications.isEmpty
+      body: notifications.isEmpty
           ? const Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -117,96 +69,111 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             )
           : ListView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              itemCount: _notifications.length,
+              itemCount: notifications.length,
               itemBuilder: (context, index) {
-                final item = _notifications[index];
-                return Dismissible(
-                  key: Key(item.id),
-                  direction: DismissDirection.endToStart,
-                  background: Container(
-                    alignment: Alignment.centerRight,
-                    padding: const EdgeInsets.only(right: 20),
-                    decoration: BoxDecoration(
-                      color: AppColors.error,
-                      borderRadius: BorderRadius.circular(16),
+                final item = notifications[index];
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: item.isRead ? Colors.white : const Color(0xFFFFF8E1),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: item.type == NotificationType.guidePending
+                          ? const Color(0xFFFFB74D)
+                          : (item.isRead ? AppColors.border : AppColors.primaryLight.withOpacity(0.3)),
+                      width: item.type == NotificationType.guidePending ? 1.5 : 1,
                     ),
-                    child: const Icon(Icons.delete, color: Colors.white),
-                  ),
-                  onDismissed: (dir) {
-                    setState(() => _notifications.removeAt(index));
-                  },
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: item.isRead ? Colors.white : AppColors.primaryLight.withOpacity(0.06),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: item.isRead ? AppColors.border : AppColors.primaryLight.withOpacity(0.3),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.03),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
                       ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.03),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
+                    ],
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: item.iconColor.withOpacity(0.12),
+                          shape: BoxShape.circle,
                         ),
-                      ],
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: item.iconColor.withOpacity(0.12),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(item.icon, color: item.iconColor, size: 24),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      item.title,
-                                      style: TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: item.isRead ? FontWeight.w600 : FontWeight.bold,
-                                        color: AppColors.textPrimary,
-                                      ),
+                        child: Icon(item.icon, color: item.iconColor, size: 24),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    item.title,
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: item.isRead ? FontWeight.w600 : FontWeight.bold,
+                                      color: AppColors.textPrimary,
                                     ),
                                   ),
-                                  if (!item.isRead)
-                                    Container(
-                                      width: 8,
-                                      height: 8,
-                                      decoration: const BoxDecoration(
-                                        color: AppColors.primary,
-                                        shape: BoxShape.circle,
-                                      ),
+                                ),
+                                if (!item.isRead)
+                                  Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: const BoxDecoration(
+                                      color: AppColors.accentGold,
+                                      shape: BoxShape.circle,
                                     ),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                item.message,
-                                style: const TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.4),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                item.time,
-                                style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
-                              ),
-                            ],
-                          ),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              item.message,
+                              style: const TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.4),
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  item.time,
+                                  style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                                ),
+                                if (item.type == NotificationType.guidePending && item.guideEmail != null)
+                                  Row(
+                                    children: [
+                                      ElevatedButton.icon(
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: AppColors.success,
+                                          foregroundColor: Colors.white,
+                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                          visualDensity: VisualDensity.compact,
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                        ),
+                                        icon: const Icon(Icons.check, size: 14),
+                                        label: const Text('Одобрить', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                        onPressed: () {
+                                          _auth.approveGuide(item.guideEmail!);
+                                          _service.markGuideAsApproved(item.guideEmail!);
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            const SnackBar(content: Text('Гид мәртебесі мақұлданды! ✅')),
+                                          );
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                              ],
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 );
               },

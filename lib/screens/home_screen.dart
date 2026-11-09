@@ -3,6 +3,7 @@ import '../models/tour_place.dart';
 import '../models/booking_model.dart';
 import '../services/tour_repository.dart';
 import '../services/auth_service.dart';
+import '../services/mock_data_service.dart';
 import '../utils/theme_constants.dart';
 import '../widgets/category_chip.dart';
 import '../widgets/place_card.dart';
@@ -13,7 +14,9 @@ import 'favorites_screen.dart';
 import 'notifications_screen.dart';
 import 'search_screen.dart';
 import 'qr_scanner_screen.dart';
+import 'admin_panel_screen.dart';
 import '../widgets/qr_ticket_widget.dart';
+import '../services/notification_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -43,12 +46,14 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _repo.addListener(_onRepoChanged);
     AuthService.instance.addListener(_onAuthChanged);
+    NotificationService.instance.addListener(_onAuthChanged);
   }
 
   @override
   void dispose() {
     _repo.removeListener(_onRepoChanged);
     AuthService.instance.removeListener(_onAuthChanged);
+    NotificationService.instance.removeListener(_onAuthChanged);
     _searchController.dispose();
     super.dispose();
   }
@@ -411,65 +416,89 @@ class _HomeScreenState extends State<HomeScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Text(
-                                'Қайырлы күн, ${(AuthService.instance.currentUser ?? _repo.currentUser)?.fullName.split(' ').first ?? 'Саяхатшы'}! 👋',
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  color: AppColors.textSecondary,
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: ((AuthService.instance.currentUser ?? _repo.currentUser)?.isGuide ?? false)
-                                      ? AppColors.accentGold.withOpacity(0.18)
-                                      : AppColors.primary.withOpacity(0.12),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  ((AuthService.instance.currentUser ?? _repo.currentUser)?.isGuide ?? false) ? 'ГИД 🏅' : 'ТУРИСТ 🎒',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    color: ((AuthService.instance.currentUser ?? _repo.currentUser)?.isGuide ?? false)
-                                        ? const Color(0xFFB78103)
-                                        : AppColors.primary,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    'Қайырлы күн, ${(AuthService.instance.currentUser ?? _repo.currentUser)?.fullName.split(' ').first ?? 'Саяхатшы'}! 👋',
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          const Text(
-                            'Қазақстанды ашыңыз',
-                            style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textPrimary,
+                                const SizedBox(width: 4),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: ((AuthService.instance.currentUser ?? _repo.currentUser)?.isGuide ?? false)
+                                        ? AppColors.accentGold.withOpacity(0.18)
+                                        : AppColors.primary.withOpacity(0.12),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    ((AuthService.instance.currentUser ?? _repo.currentUser)?.isGuide ?? false) ? 'ГИД 🏅' : 'ТУРИСТ 🎒',
+                                    style: TextStyle(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.bold,
+                                      color: ((AuthService.instance.currentUser ?? _repo.currentUser)?.isGuide ?? false)
+                                          ? const Color(0xFFB78103)
+                                          : AppColors.primary,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 2),
+                            const Text(
+                              'Қазақстанды ашыңыз',
+                              style: TextStyle(
+                                fontSize: 19,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.textPrimary,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
                       ),
                       Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           IconButton(
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.all(4),
+                            constraints: const BoxConstraints(),
                             tooltip: 'Live Чат (Realtime гид)',
-                            icon: const Icon(Icons.forum_outlined, color: AppColors.primary, size: 26),
+                            icon: const Icon(Icons.forum_outlined, color: AppColors.primary, size: 24),
                             onPressed: () {
                               Navigator.pushNamed(context, '/chat');
                             },
                           ),
+                          const SizedBox(width: 4),
                           if ((AuthService.instance.currentUser ?? _repo.currentUser)?.isGuide ?? false)
                             IconButton(
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.all(4),
+                              constraints: const BoxConstraints(),
                               tooltip: 'Билеттерді тексеру (Гид Сканері)',
-                              icon: const Icon(Icons.qr_code_scanner, color: AppColors.primary, size: 26),
+                              icon: const Icon(Icons.qr_code_scanner, color: AppColors.primary, size: 24),
                               onPressed: () {
+                                final active = (AuthService.instance.currentUser ?? _repo.currentUser);
+                                if (active?.isGuide == true && active?.isApproved == false) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('⏳ Гид аккаунты әкімші тексеруінде (Профильде мақұлдаңыз)'),
+                                      backgroundColor: Color(0xFFF57F17),
+                                    ),
+                                  );
+                                  return;
+                                }
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(builder: (context) => const QRScannerScreen()),
@@ -478,8 +507,11 @@ class _HomeScreenState extends State<HomeScreen> {
                             )
                           else
                             IconButton(
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.all(4),
+                              constraints: const BoxConstraints(),
                               tooltip: 'Менің QR Билетім',
-                              icon: const Icon(Icons.qr_code_2_rounded, color: AppColors.accentGold, size: 28),
+                              icon: const Icon(Icons.qr_code_2_rounded, color: AppColors.accentGold, size: 26),
                               onPressed: () {
                                 final booking = _repo.bookings.isNotEmpty ? _repo.bookings.first : MockDataService.mockBookings.first;
                                 showDialog(
@@ -492,22 +524,33 @@ class _HomeScreenState extends State<HomeScreen> {
                                 );
                               },
                             ),
+                          const SizedBox(width: 4),
                           IconButton(
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.all(4),
+                            constraints: const BoxConstraints(),
                             icon: Stack(
+                              clipBehavior: Clip.none,
                               children: [
-                                const Icon(Icons.notifications_outlined, color: AppColors.textPrimary, size: 26),
-                                Positioned(
-                                  right: 2,
-                                  top: 2,
-                                  child: Container(
-                                    width: 8,
-                                    height: 8,
-                                    decoration: const BoxDecoration(
-                                      color: AppColors.error,
-                                      shape: BoxShape.circle,
+                                const Icon(Icons.notifications_outlined, color: AppColors.textPrimary, size: 24),
+                                if (NotificationService.instance.unreadCount > 0)
+                                  Positioned(
+                                    right: -2,
+                                    top: -2,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(3),
+                                      decoration: const BoxDecoration(
+                                        color: AppColors.error,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      constraints: const BoxConstraints(minWidth: 14, minHeight: 14),
+                                      child: Text(
+                                        '${NotificationService.instance.unreadCount}',
+                                        style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
+                                        textAlign: TextAlign.center,
+                                      ),
                                     ),
                                   ),
-                                ),
                               ],
                             ),
                             onPressed: () {
@@ -587,6 +630,61 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
+
+                  // Admin Guide Notification Alert Banner
+                  if (((AuthService.instance.currentUser ?? _repo.currentUser)?.isAdmin ?? false) &&
+                      AuthService.instance.pendingGuides.isNotEmpty) ...[
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(colors: [Color(0xFFFFF3E0), Color(0xFFFFE0B2)]),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFFFFB74D), width: 1.5),
+                        boxShadow: [
+                          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 4, offset: const Offset(0, 2)),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.mark_email_unread_rounded, color: Color(0xFFE65100), size: 26),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Жаңа гид өтінімі! (${AuthService.instance.pendingGuides.length} адам)',
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFFE65100)),
+                                ),
+                                Text(
+                                  '${AuthService.instance.pendingGuides.first.fullName} мақұлдауды күтуде',
+                                  style: const TextStyle(fontSize: 11, color: Colors.black87),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFE65100),
+                              foregroundColor: Colors.white,
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (context) => const AdminPanelScreen()),
+                              );
+                            },
+                            child: const Text('Қарау 👑', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
 
                   // 7, 12, 13, 14, 15, 16. REST API & Cloud Status Bar
                   _buildApiStatusBar(),
@@ -715,13 +813,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         const Text(
                           'Іздеу сөзін немесе категорияны өзгертіп көріңіз',
                           style: TextStyle(fontSize: 13, color: AppColors.textMuted),
-                        ),
-                        const SizedBox(height: 12),
-                        ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-                          onPressed: _showQuickAddTour,
-                          icon: const Icon(Icons.add, color: Colors.white),
-                          label: const Text('Жаңа тур қосу', style: TextStyle(color: Colors.white)),
                         ),
                       ],
                     ),

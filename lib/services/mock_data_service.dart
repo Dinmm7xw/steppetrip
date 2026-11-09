@@ -3,55 +3,22 @@ import '../models/user_model.dart';
 import '../models/booking_model.dart';
 
 class MockDataService {
-  static const UserModel currentUser = UserModel(
-    id: 'user_01',
-    fullName: 'Әлішер Ерболұлы',
-    email: 'alisher.erbol@gmail.com',
-    phone: '+7 (707) 123-45-67',
+  static const UserModel adminUser = UserModel(
+    id: 'admin_01',
+    fullName: 'Дінмұхаммед Бақытұлы',
+    email: 'dinmuhammed@steppetrip.kz',
+    phone: '+7 (777) 999-88-77',
     avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=300&q=80',
     preferredLanguage: 'Қазақша',
-    completedTours: 4,
+    completedTours: 24,
+    role: 'admin',
+    isApproved: true,
   );
 
+  static const UserModel currentUser = adminUser;
+
   static final List<UserModel> demoUsers = [
-    currentUser,
-    const UserModel(
-      id: 'user_02',
-      fullName: 'Дінмұхаммед Бақытұлы',
-      email: 'dinmuhammed@steppetrip.kz',
-      phone: '+7 (777) 999-88-77',
-      avatarUrl: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=300&q=80',
-      preferredLanguage: 'Қазақша',
-      completedTours: 8,
-    ),
-    const UserModel(
-      id: 'user_03',
-      fullName: 'Аружан Сағитова',
-      email: 'aruzhan.sagitova@gmail.com',
-      phone: '+7 (701) 555-44-33',
-      avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=300&q=80',
-      preferredLanguage: 'Қазақша',
-      completedTours: 2,
-    ),
-    const UserModel(
-      id: 'user_04',
-      fullName: 'Димаш Құдайберген',
-      email: 'dimash.kudaibergen@gmail.com',
-      phone: '+7 (708) 777-11-22',
-      avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80',
-      preferredLanguage: 'Қазақша',
-      completedTours: 12,
-    ),
-    const UserModel(
-      id: 'user_05',
-      fullName: 'Бауыржан Серікұлы (Гид)',
-      email: 'guide.bauyrzhan@steppetrip.kz',
-      phone: '+7 (777) 222-33-44',
-      avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=300&q=80',
-      preferredLanguage: 'Қазақша',
-      completedTours: 142,
-      role: 'guide',
-    ),
+    adminUser,
   ];
 
   static const List<String> categories = [

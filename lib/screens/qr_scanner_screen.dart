@@ -3,6 +3,7 @@ import '../services/qr_scanner_service.dart';
 import '../services/tour_repository.dart';
 import '../services/mock_data_service.dart';
 import '../widgets/qr_ticket_widget.dart';
+import '../widgets/camera/camera_view.dart';
 import '../utils/theme_constants.dart';
 
 /// Практикалық жұмыс №6:
@@ -35,16 +36,19 @@ class _QRScannerScreenState extends State<QRScannerScreen>
       CurvedAnimation(parent: _animController, curve: Curves.easeInOut),
     );
 
-    // 13. Экран ашылғанда камера рұқсатын тексеру
+    // 13. Экран ашылғанда камера рұқсатын тексеру және шынайы камераны іске қосу
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scanner.cameraPermission == DevicePermissionStatus.notDetermined) {
         _requestPermission();
+      } else if (_scanner.hasPermission) {
+        startRealCamera();
       }
     });
   }
 
   @override
   void dispose() {
+    stopRealCamera();
     _scanner.removeListener(_onScannerChanged);
     _animController.dispose();
     _manualCodeCtrl.dispose();
@@ -57,6 +61,9 @@ class _QRScannerScreenState extends State<QRScannerScreen>
 
   Future<void> _requestPermission() async {
     final status = await _scanner.requestCameraPermission(grant: true);
+    if (status == DevicePermissionStatus.granted) {
+      await startRealCamera();
+    }
     if (mounted && status == DevicePermissionStatus.denied) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -250,66 +257,97 @@ class _QRScannerScreenState extends State<QRScannerScreen>
         ),
         const Spacer(),
 
-        // Viewfinder
+        // Viewfinder with Real Camera feed
         Center(
           child: Container(
             width: 270,
             height: 270,
+            clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(
               border: Border.all(color: AppColors.primaryLight, width: 3),
               borderRadius: BorderRadius.circular(24),
-              color: Colors.white.withOpacity(0.04),
+              color: Colors.black,
             ),
-            child: AnimatedBuilder(
-              animation: _laserAnimation,
-              builder: (context, child) {
-                return Stack(
-                  children: [
-                    // Corner accents
-                    Positioned(
-                      top: 0,
-                      left: 0,
-                      child: Container(width: 30, height: 30, decoration: const BoxDecoration(border: Border(top: BorderSide(color: AppColors.secondary, width: 4), left: BorderSide(color: AppColors.secondary, width: 4)))),
-                    ),
-                    Positioned(
-                      top: 0,
-                      right: 0,
-                      child: Container(width: 30, height: 30, decoration: const BoxDecoration(border: Border(top: BorderSide(color: AppColors.secondary, width: 4), right: BorderSide(color: AppColors.secondary, width: 4)))),
-                    ),
-                    Positioned(
-                      bottom: 0,
-                      left: 0,
-                      child: Container(width: 30, height: 30, decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.secondary, width: 4), left: BorderSide(color: AppColors.secondary, width: 4)))),
-                    ),
-                    Positioned(
-                      bottom: 0,
-                      right: 0,
-                      child: Container(width: 30, height: 30, decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.secondary, width: 4), right: BorderSide(color: AppColors.secondary, width: 4)))),
-                    ),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                // Real camera preview (WebRTC / Device)
+                getRealCameraView(onCodeDetected: _handleSimulatedScan),
 
-                    // Animated Scanning Laser Line
-                    Positioned(
-                      top: 270 * _laserAnimation.value,
-                      left: 10,
-                      right: 10,
-                      child: Container(
-                        height: 3,
-                        decoration: BoxDecoration(
-                          color: AppColors.secondary,
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.secondary.withOpacity(0.8),
-                              blurRadius: 10,
-                              spreadRadius: 2,
-                            ),
-                          ],
+                // Scanning laser overlay & corner guides
+                AnimatedBuilder(
+                  animation: _laserAnimation,
+                  builder: (context, child) {
+                    return Stack(
+                      children: [
+                        // Corner accents
+                        Positioned(
+                          top: 0,
+                          left: 0,
+                          child: Container(width: 30, height: 30, decoration: const BoxDecoration(border: Border(top: BorderSide(color: AppColors.secondary, width: 4), left: BorderSide(color: AppColors.secondary, width: 4)))),
                         ),
-                      ),
-                    ),
-                  ],
-                );
-              },
+                        Positioned(
+                          top: 0,
+                          right: 0,
+                          child: Container(width: 30, height: 30, decoration: const BoxDecoration(border: Border(top: BorderSide(color: AppColors.secondary, width: 4), right: BorderSide(color: AppColors.secondary, width: 4)))),
+                        ),
+                        Positioned(
+                          bottom: 0,
+                          left: 0,
+                          child: Container(width: 30, height: 30, decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.secondary, width: 4), left: BorderSide(color: AppColors.secondary, width: 4)))),
+                        ),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Container(width: 30, height: 30, decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.secondary, width: 4), right: BorderSide(color: AppColors.secondary, width: 4)))),
+                        ),
+
+                        // Animated Scanning Laser Line
+                        Positioned(
+                          top: 270 * _laserAnimation.value,
+                          left: 10,
+                          right: 10,
+                          child: Container(
+                            height: 3,
+                            decoration: BoxDecoration(
+                              color: AppColors.secondary,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.secondary.withOpacity(0.8),
+                                  blurRadius: 10,
+                                  spreadRadius: 2,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ],
             ),
+          ),
+        ),
+
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white24),
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.videocam_rounded, color: Colors.greenAccent, size: 16),
+              SizedBox(width: 6),
+              Text(
+                'Шынайы камера (WebRTC трансляциясы)',
+                style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500),
+              ),
+            ],
           ),
         ),
 
